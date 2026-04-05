@@ -1217,6 +1217,7 @@ function getStoneEligibleKeys() {
 function getRainbowEligibleKeys() {
   const playerPositions = new Set(players.map(p => `${p.x},${p.y}`));
   return Object.keys(grid).filter(key => {
+    const [x, y] = key.split(",").map(Number);
     if (nodeByPos[key]) return false;
     if (resourceByPos[key]) return false;
     if (specialByPos[key]) return false;
@@ -1227,6 +1228,7 @@ function getRainbowEligibleKeys() {
     if (treasure && treasure.key === key) return false;
     if (flowerArtifact && flowerArtifact.key === key) return false;
     if (barbarianCells.some(cell => cell.key === key)) return false;
+    if (isSpawnBlocked(x, y)) return false;
     if (blockedCellKeys.has(key)) return false;
     const cell = grid[key];
     if (!cell) return false;
