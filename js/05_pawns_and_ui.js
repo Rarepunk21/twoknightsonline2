@@ -5033,8 +5033,6 @@ function finalizeMove(gridX, gridY) {
       ? `игрока ${currentPlayer.id + 1}`
       : `игрока ${currentPlayerIndex + 1}`;
     showPickupToast(`Ловушка-стан оглушила ${trappedPlayerLabel} — пропуск 3 ходов.`);
-    endTurn();
-    return;
   }
 
   const castleKey = getCastleBaseKeyForPos(gridX, gridY) || key;
@@ -5733,7 +5731,6 @@ if (typeof MutationObserver !== "undefined" && turnModalObserverTargets.length) 
     });
   });
 }
-
 
 
 
