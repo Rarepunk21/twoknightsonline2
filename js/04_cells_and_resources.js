@@ -324,6 +324,7 @@ function initFlowerSpawns() {
   }
   flowerSpawnTurns.length = 0;
   flowerSpawnTurns.push(...Array.from(picked).sort((a, b) => a - b));
+  flowerSpawnIndex = 0;
 }
 initFlowerSpawns();
 function initStoneSpawns() {
@@ -350,6 +351,7 @@ function initRainbowSpawns() {
   }
   rainbowSpawnTurns.length = 0;
   rainbowSpawnTurns.push(...Array.from(picked).sort((a, b) => a - b));
+  rainbowSpawnIndex = 0;
 }
 initRainbowSpawns();
 const MAGE_POSITIONS = [
