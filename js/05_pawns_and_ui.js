@@ -163,9 +163,12 @@ const WORMHOLE_ICON = { file: "wormhole.png", alt: "Червоточина" };
 const STAIRS_ICON = { file: "stairs.png", alt: "Лестница" };
 const UNDERWORLD_GOLD_COUNT = 5;
 const UNDERWORLD_RESOURCES_COUNT = 3;
-const UNDERWORLD_REWARD_MULTIPLIER_EARLY = 1.7;
-const UNDERWORLD_REWARD_MULTIPLIER_LATE = 2.5;
-const UNDERWORLD_REWARD_LATE_TURN = 150;
+const UNDERWORLD_GOLD_MIN = 500;
+const UNDERWORLD_GOLD_MAX = 750;
+const UNDERWORLD_RESOURCES_MIN = 100;
+const UNDERWORLD_RESOURCES_MAX = 150;
+const UNDERWORLD_REWARD_LATE_MULTIPLIER = 1.8;
+const UNDERWORLD_REWARD_LATE_TURN = 175;
 const WORMHOLE_MIN_SPAWNS = 1;
 const WORMHOLE_MAX_SPAWNS = 3;
 const WORMHOLE_MIN_SPAWN_TURN = 75;
@@ -5203,15 +5206,16 @@ function finalizeMove(gridX, gridY) {
       const typeKey = underworldResource.typeKey;
       let amount = 0;
       if (typeKey === "gold") {
-        amount = Math.floor(Math.random() * (400 - 200 + 1)) + 200;
+        amount = Math.floor(Math.random() * (UNDERWORLD_GOLD_MAX - UNDERWORLD_GOLD_MIN + 1)) + UNDERWORLD_GOLD_MIN;
       } else if (typeKey === "resources") {
-        amount = Math.floor(Math.random() * (30 - 20 + 1)) + 20;
+        amount = Math.floor(Math.random() * (UNDERWORLD_RESOURCES_MAX - UNDERWORLD_RESOURCES_MIN + 1)) + UNDERWORLD_RESOURCES_MIN;
       }
-      const underworldMultiplier =
-        turnCounter >= UNDERWORLD_REWARD_LATE_TURN
-          ? UNDERWORLD_REWARD_MULTIPLIER_LATE
-          : UNDERWORLD_REWARD_MULTIPLIER_EARLY;
-      amount = Math.max(1, Math.floor(amount * underworldMultiplier));
+      if (turnCounter >= UNDERWORLD_REWARD_LATE_TURN) {
+        amount = Math.max(1, Math.floor(amount * UNDERWORLD_REWARD_LATE_MULTIPLIER));
+      }
+      if (currentPlayer.luckTurnsRemaining > 0) {
+        amount = Math.max(1, Math.floor(amount * 1.6));
+      }
       currentPlayer.pocket[typeKey] += amount;
       delete underworldState.resourcesByPos[key];
       updatePlayerResources(currentPlayerIndex);
