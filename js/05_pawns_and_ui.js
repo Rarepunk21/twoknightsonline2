@@ -1566,41 +1566,42 @@ function handleMageAction(action) {
   const player = players[pendingMagePlayerIndex];
   if (!player) return;
   const opponent = players[getOpponentIndex(pendingMagePlayerIndex)];
+  const showMageToast = text => showPrivatePickupToastForPlayer(pendingMagePlayerIndex, text);
   if (action === "flower-infl") {
     if ((player.flowerCount || 0) <= 0) {
-      showPickupToast("Нужен таинственный цветок.");
+      showMageToast("Нужен таинственный цветок.");
       return;
     }
     player.flowerCount -= 1;
     player.resources.influence += 300;
     updatePlayerResources(pendingMagePlayerIndex);
-    showPickupToast("Таинственный цветок обменян на 300 влияния.");
+    showMageToast("Таинственный цветок обменян на 300 влияния.");
     const btn = mageActionButtons.find(b => b.dataset.mageAction === "flower-infl");
     flashPrice(btn, 1, "assets/icons/mystic_flower.png", "Таинственный цветок");
     return;
   }
   if (action === "flower-gold") {
     if ((player.flowerCount || 0) <= 0) {
-      showPickupToast("Нужен таинственный цветок.");
+      showMageToast("Нужен таинственный цветок.");
       return;
     }
     player.flowerCount -= 1;
     player.pocket.gold += 1000;
     updatePlayerResources(pendingMagePlayerIndex);
-    showPickupToast("Таинственный цветок обменян на 1000 золота.");
+    showMageToast("Таинственный цветок обменян на 1000 золота.");
     const btn = mageActionButtons.find(b => b.dataset.mageAction === "flower-gold");
     flashPrice(btn, 1, "assets/icons/mystic_flower.png", "Таинственный цветок");
     return;
   }
   if (action === "clover-luck") {
     if ((player.cloverCount || 0) <= 0) {
-      showPickupToast("Нужен клевер.");
+      showMageToast("Нужен клевер.");
       return;
     }
     player.cloverCount -= 1;
     player.luckPotionCount = (player.luckPotionCount || 0) + 1;
     updatePlayerResources(pendingMagePlayerIndex);
-    showPickupToast("Зелье удачи добавлено в инвентарь.");
+    showMageToast("Зелье удачи добавлено в инвентарь.");
     const btn = mageActionButtons.find(b => b.dataset.mageAction === "clover-luck");
     flashPrice(btn, 1, "assets/icons/clover.png", "Клевер");
     return;
@@ -1608,28 +1609,28 @@ function handleMageAction(action) {
   const baseCost = getMageActionCost(action);
   const cost = baseCost === null ? null : getDiscountedGoldCost(player, baseCost);
   if (cost === null || getTotalGold(player) < cost) {
-    showPickupToast("Не хватает золота.");
+    showMageToast("Не хватает золота.");
     return;
   }
   if (action === "poison" && (player.flowerCount || 0) <= 0) {
-    showPickupToast("Нужен таинственный цветок.");
+    showMageToast("Нужен таинственный цветок.");
     return;
   }
   spendGold(player, cost);
   if (action === "slow") {
     if (opponent) opponent.slowTurnsRemaining = MAGE_SLOW_DURATION;
-    showPickupToast("Противник замедлен на 25 ходов.");
+    showMageToast("Противник замедлен на 25 ходов.");
     const btn = mageActionButtons.find(b => b.dataset.mageAction === "slow");
     flashPrice(btn, cost, "assets/icons/icon-gold.png", "Золото");
   } else if (action === "no-double") {
     if (opponent) opponent.noDoubleTurnsRemaining = MAGE_NO_DOUBLE_DURATION;
-    showPickupToast("Двойной ход отменен на 25 ходов.");
+    showMageToast("Двойной ход отменен на 25 ходов.");
     const btn = mageActionButtons.find(b => b.dataset.mageAction === "no-double");
     flashPrice(btn, cost, "assets/icons/icon-gold.png", "Золото");
   } else if (action === "poison") {
     player.flowerCount = Math.max(0, (player.flowerCount || 0) - 1);
     player.poisonCount = (player.poisonCount || 0) + 1;
-    showPickupToast("Яд добавлен в инвентарь.");
+    showMageToast("Яд добавлен в инвентарь.");
     const btn = mageActionButtons.find(b => b.dataset.mageAction === "poison");
     flashPrice(btn, cost, "assets/icons/icon-gold.png", "Золото");
     flashPrice(btn, 1, "assets/icons/mystic_flower.png", "Таинственный цветок");
