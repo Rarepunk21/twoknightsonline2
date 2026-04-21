@@ -27,6 +27,10 @@ game.addEventListener("click", e => {
     tryBallistaShot(gridX, gridY);
     return;
   }
+  if (bridgeModePlayerIndex === currentPlayerIndex) {
+    tryApplyBridgeToCell(currentPlayerIndex, key);
+    return;
+  }
   if ((currentPlayer.layer || WORLD_LAYER_UPPER) === WORLD_LAYER_UNDER) {
     if (gridX === currentPlayer.x && gridY === currentPlayer.y) {
       return;
@@ -162,7 +166,7 @@ game.addEventListener("click", e => {
     }
   }
 
-  if (blockedCellKeys.has(key)) return;
+  if (isMovementBlockedKey(key)) return;
   if (!wasReachable) return;
 
   finalizeMove(gridX, gridY);

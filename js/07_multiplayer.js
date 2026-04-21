@@ -255,6 +255,7 @@ function buildState() {
       rainbowStoneCount: p.rainbowStoneCount,
       heroHiltCount: p.heroHiltCount,
       trapStunCount: p.trapStunCount,
+      bridgeCount: p.bridgeCount,
       stoneBonusRollsRemaining: p.stoneBonusRollsRemaining,
       stunnedTurnsRemaining: p.stunnedTurnsRemaining,
       stunSource: p.stunSource,
@@ -351,6 +352,7 @@ function buildState() {
     cutthroatIdCounter,
     trapStunFields: shallowClone(trapStunFields),
     trapStunIdCounter,
+    bridgeOpenedKeys: Array.from(bridgeOpenedKeys),
     gameWinnerIndex,
     upperWormhole: shallowClone(upperWormhole),
     wormholeSpawnTurns: shallowClone(wormholeSpawnTurns),
@@ -361,6 +363,7 @@ function buildState() {
     pendingTurnManualOnly,
     deferredPrivateTurnPlayerIndex,
     ballistaModePlayerIndex,
+    bridgeModePlayerIndex,
     reachableKeys: Array.from(reachableKeys),
     castleOwnersByKey: shallowClone(castleOwnersByKey),
     castleStatsByKey: shallowClone(castleStatsByKey)
@@ -636,6 +639,7 @@ function applyState(state) {
   pendingTurnManualOnly = state.pendingTurnManualOnly ?? pendingTurnManualOnly;
   deferredPrivateTurnPlayerIndex = state.deferredPrivateTurnPlayerIndex ?? deferredPrivateTurnPlayerIndex;
   ballistaModePlayerIndex = Number.isInteger(state.ballistaModePlayerIndex) ? state.ballistaModePlayerIndex : null;
+  bridgeModePlayerIndex = Number.isInteger(state.bridgeModePlayerIndex) ? state.bridgeModePlayerIndex : null;
   upperWormhole = state.upperWormhole ?? upperWormhole;
   wormholeSpawnTurns = Array.isArray(state.wormholeSpawnTurns) ? state.wormholeSpawnTurns.slice() : wormholeSpawnTurns;
   wormholeSpawnIndex = state.wormholeSpawnIndex ?? wormholeSpawnIndex;
@@ -740,6 +744,10 @@ function applyState(state) {
   }
   if (typeof trapStunIdCounter !== "undefined") {
     trapStunIdCounter = state.trapStunIdCounter ?? trapStunIdCounter;
+  }
+  if (typeof bridgeOpenedKeys !== "undefined") {
+    bridgeOpenedKeys.clear();
+    (state.bridgeOpenedKeys || []).forEach(key => bridgeOpenedKeys.add(key));
   }
   if (typeof renderTrapStunFields === "function") {
     renderTrapStunFields();
@@ -959,17 +967,21 @@ function performPrivateUiAction(action) {
         buyCastleBallista();
         return;
       }
-    if (actionType === "buyBolt" && typeof buyCastleBolt === "function") {
-      buyCastleBolt();
-      return;
-    }
-    if (actionType === "buyTrapStun" && typeof buyCastleTrapStun === "function") {
-      buyCastleTrapStun();
-      return;
-    }
-    if (actionType === "depositArmy" && typeof depositCastleArmy === "function") {
-      depositCastleArmy(payload.amount);
-      return;
+      if (actionType === "buyBolt" && typeof buyCastleBolt === "function") {
+        buyCastleBolt();
+        return;
+      }
+      if (actionType === "buyTrapStun" && typeof buyCastleTrapStun === "function") {
+        buyCastleTrapStun();
+        return;
+      }
+      if (actionType === "buyBridge" && typeof buyCastleBridge === "function") {
+        buyCastleBridge();
+        return;
+      }
+      if (actionType === "depositArmy" && typeof depositCastleArmy === "function") {
+        depositCastleArmy(payload.amount);
+        return;
       }
       if (actionType === "withdrawArmy" && typeof withdrawCastleArmy === "function") {
         withdrawCastleArmy(payload.amount);
@@ -977,19 +989,23 @@ function performPrivateUiAction(action) {
       }
       if (actionType === "upgrade" && typeof upgradeCastleLevel === "function") {
         upgradeCastleLevel();
-    }
-    return;
-  }
-  if (modalType === "inventory") {
-    if (actionType === "cancelBallista" && typeof cancelBallistaMode === "function") {
-      cancelBallistaMode(playerIndex);
+      }
       return;
     }
-    if (actionType === "use" && payload.useAction && typeof applyPotion === "function") {
-      applyPotion(playerIndex, payload.useAction);
+    if (modalType === "inventory") {
+      if (actionType === "cancelBallista" && typeof cancelBallistaMode === "function") {
+        cancelBallistaMode(playerIndex);
+        return;
+      }
+      if (actionType === "cancelBridge" && typeof cancelBridgeMode === "function") {
+        cancelBridgeMode(playerIndex);
+        return;
+      }
+      if (actionType === "use" && payload.useAction && typeof applyPotion === "function") {
+        applyPotion(playerIndex, payload.useAction);
+      }
+      return;
     }
-    return;
-  }
     if (modalType === "barracks") {
       if (Number.isInteger(playerIndex)) {
         barracksPlayerIndex = playerIndex;
@@ -1377,6 +1393,36 @@ if (socket) {
     if (type === "clearBallistaMode") {
       if (!Number.isInteger(payload.playerIndex) || ballistaModePlayerIndex === payload.playerIndex) {
         ballistaModePlayerIndex = null;
+      }
+      if (typeof clearReachable === "function") {
+        clearReachable();
+      }
+      if (typeof showReachable === "function") {
+        showReachable();
+      }
+      if (Number.isInteger(payload.playerIndex) && typeof updateInventory === "function") {
+        updateInventory(payload.playerIndex);
+      }
+      return;
+    }
+    if (type === "activateBridgeMode") {
+      if (Number.isInteger(payload.playerIndex)) {
+        bridgeModePlayerIndex = payload.playerIndex;
+        if (typeof clearReachable === "function") {
+          clearReachable();
+        }
+        if (typeof showReachable === "function") {
+          showReachable();
+        }
+        if (typeof updateInventory === "function") {
+          updateInventory(payload.playerIndex);
+        }
+      }
+      return;
+    }
+    if (type === "clearBridgeMode") {
+      if (!Number.isInteger(payload.playerIndex) || bridgeModePlayerIndex === payload.playerIndex) {
+        bridgeModePlayerIndex = null;
       }
       if (typeof clearReachable === "function") {
         clearReachable();

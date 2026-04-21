@@ -99,6 +99,7 @@ const castleWithdrawArmy = document.querySelector("[data-castle-army]");
 const ballistaBuyBtn = document.getElementById("ballistaBuyBtn");
 const boltBuyBtn = document.getElementById("boltBuyBtn");
 const trapStunBuyBtn = document.getElementById("trapStunBuyBtn");
+const bridgeBuyBtn = document.getElementById("bridgeBuyBtn");
 let castleModalKey = null;
 let castleModalPlayerIndex = null;
 const castleFeatureButtons = Array.from(document.querySelectorAll("[data-castle-feature]"));
