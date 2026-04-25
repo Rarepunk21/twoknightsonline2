@@ -311,55 +311,67 @@
 </div>
 
 <div id="barracksModal">
-  <div class="barracks-card">
-    <h2 class="barracks-title">КАЗАРМА</h2>
-    <ul class="barracks-list">
-      <li><button type="button" class="trade-btn" data-buy="army-50"><span class="trade-main">Покупка: 50 войск</span><span class="trade-price"><img class="price-icon" src="assets/icons/icon-gold.png" alt="Золото" />Цена: 2000 золота</span></button></li>
-      <li><button type="button" class="trade-btn" data-buy="army-130"><span class="trade-main">Покупка: 130 войск</span><span class="trade-price"><img class="price-icon" src="assets/icons/icon-gold.png" alt="Золото" />Цена: 4000 золота</span></button></li>
-      <li><button type="button" class="trade-btn" data-buy="army-100-infl"><span class="trade-main">Покупка: 300 влияния</span><span class="trade-price"><img class="price-icon" src="assets/icons/icon-army.png" alt="Войска" />Цена: 100 войск</span></button></li>
-    </ul>
-    <button type="button" class="barracks-close" id="barracksClose">Закрыть</button>
+  <div class="character-modal-layout">
+    <div class="character-modal-portrait portrait-barracks" aria-hidden="true"></div>
+    <div class="barracks-card">
+      <h2 class="barracks-title">КАЗАРМА</h2>
+      <ul class="barracks-list">
+        <li><button type="button" class="trade-btn" data-buy="army-50"><span class="trade-main">Покупка: 50 войск</span><span class="trade-price"><img class="price-icon" src="assets/icons/icon-gold.png" alt="Золото" />Цена: 2000 золота</span></button></li>
+        <li><button type="button" class="trade-btn" data-buy="army-130"><span class="trade-main">Покупка: 130 войск</span><span class="trade-price"><img class="price-icon" src="assets/icons/icon-gold.png" alt="Золото" />Цена: 4000 золота</span></button></li>
+        <li><button type="button" class="trade-btn" data-buy="army-100-infl"><span class="trade-main">Покупка: 300 влияния</span><span class="trade-price"><img class="price-icon" src="assets/icons/icon-army.png" alt="Войска" />Цена: 100 войск</span></button></li>
+      </ul>
+      <button type="button" class="barracks-close" id="barracksClose">Закрыть</button>
+    </div>
   </div>
 </div>
 
 <div id="lavkaModal">
-  <div class="barracks-card">
-    <h2 class="barracks-title">ЛАВКА</h2>
-    <ul class="barracks-list">
-      <li><button type="button" class="trade-btn" data-lavka-buy="res-1000-infl"><span class="trade-main">Покупка: 300 влияния</span><span class="trade-price"><img class="price-icon" src="assets/icons/icon-resources.png" alt="Ресурсы" />Цена: 1000 ресурсов</span></button></li>
-      <li><button type="button" class="trade-btn" data-lavka-buy="boots"><span class="trade-main">Покупка: Сапоги</span><span class="trade-price"><img class="price-icon" src="assets/icons/icon-gold.png" alt="Золото" />Цена: 1500 золота + <img class="price-icon" src="assets/icons/rainbow_stone.png" alt="Радужный камень" />Радужный камень</span></button></li>
-      <li><button type="button" class="trade-btn" data-lavka-buy="potion-invis"><span class="trade-main">Покупка: Зелье невидимости</span><span class="trade-price"><img class="price-icon" src="assets/icons/icon-gold.png" alt="Золото" />Цена: 250 золота</span></button></li>
-      <li><button type="button" class="trade-btn" data-lavka-buy="potion-luck"><span class="trade-main">Покупка: Зелье удачи</span><span class="trade-price"><img class="price-icon" src="assets/icons/icon-gold.png" alt="Золото" />Цена: 250 золота</span></button></li>
-    </ul>
-    <button type="button" class="barracks-close" id="lavkaClose">Закрыть</button>
+  <div class="character-modal-layout">
+    <div class="character-modal-portrait portrait-lavka" aria-hidden="true"></div>
+    <div class="barracks-card">
+      <h2 class="barracks-title">ЛАВКА</h2>
+      <ul class="barracks-list">
+        <li><button type="button" class="trade-btn" data-lavka-buy="res-1000-infl"><span class="trade-main">Покупка: 300 влияния</span><span class="trade-price"><img class="price-icon" src="assets/icons/icon-resources.png" alt="Ресурсы" />Цена: 1000 ресурсов</span></button></li>
+        <li><button type="button" class="trade-btn" data-lavka-buy="boots"><span class="trade-main">Покупка: Сапоги</span><span class="trade-price"><img class="price-icon" src="assets/icons/icon-gold.png" alt="Золото" />Цена: 1500 золота + <img class="price-icon" src="assets/icons/rainbow_stone.png" alt="Радужный камень" />Радужный камень</span></button></li>
+        <li><button type="button" class="trade-btn" data-lavka-buy="potion-invis"><span class="trade-main">Покупка: Зелье невидимости</span><span class="trade-price"><img class="price-icon" src="assets/icons/icon-gold.png" alt="Золото" />Цена: 250 золота</span></button></li>
+        <li><button type="button" class="trade-btn" data-lavka-buy="potion-luck"><span class="trade-main">Покупка: Зелье удачи</span><span class="trade-price"><img class="price-icon" src="assets/icons/icon-gold.png" alt="Золото" />Цена: 250 золота</span></button></li>
+      </ul>
+      <button type="button" class="barracks-close" id="lavkaClose">Закрыть</button>
+    </div>
   </div>
 </div>
 
 <div id="workshopModal">
-  <div class="barracks-card">
-    <h2 class="barracks-title">МАСТЕРСКАЯ</h2>
-    <ul class="barracks-list">
-      <li><button type="button" class="trade-btn" data-workshop-buy="armor"><span class="trade-main">Покупка: Доспехи (+7 атаки)</span><span class="trade-price"><img class="price-icon" src="assets/icons/icon-gold.png" alt="Золото" />Цена: 1500 золота</span></button></li>
-      <li><button type="button" class="trade-btn" data-workshop-buy="sword"><span class="trade-main">Покупка: Меч (+12 атаки)</span><span class="trade-price"><img class="price-icon" src="assets/icons/icon-gold.png" alt="Золото" />Цена: 2500 золота</span></button></li>
-      <li><button type="button" class="trade-btn" data-workshop-buy="hero-sword"><span class="trade-main">Покупка: Меч героя</span><span class="trade-price"><img class="price-icon" src="assets/icons/icon-gold.png" alt="Золото" />Цена: 5000 золота + <img class="price-icon" src="assets/icons/rainbow_stone.png" alt="Радужный камень" />Радужный камень + <img class="price-icon" src="assets/icons/hero_hilt.png" alt="Рукоять" />Рукоять</span></button></li>
-      <li><button type="button" class="trade-btn" data-workshop-buy="rainbow-infl"><span class="trade-main">Покупка: 300 влияния</span><span class="trade-price"><img class="price-icon" src="assets/icons/rainbow_stone.png" alt="Радужный камень" />Цена: Радужный камень</span></button></li>
-    </ul>
-    <button type="button" class="barracks-close" id="workshopClose">Закрыть</button>
+  <div class="character-modal-layout">
+    <div class="character-modal-portrait portrait-workshop" aria-hidden="true"></div>
+    <div class="barracks-card">
+      <h2 class="barracks-title">МАСТЕРСКАЯ</h2>
+      <ul class="barracks-list">
+        <li><button type="button" class="trade-btn" data-workshop-buy="armor"><span class="trade-main">Покупка: Доспехи (+7 атаки)</span><span class="trade-price"><img class="price-icon" src="assets/icons/icon-gold.png" alt="Золото" />Цена: 1500 золота</span></button></li>
+        <li><button type="button" class="trade-btn" data-workshop-buy="sword"><span class="trade-main">Покупка: Меч (+12 атаки)</span><span class="trade-price"><img class="price-icon" src="assets/icons/icon-gold.png" alt="Золото" />Цена: 2500 золота</span></button></li>
+        <li><button type="button" class="trade-btn" data-workshop-buy="hero-sword"><span class="trade-main">Покупка: Меч героя</span><span class="trade-price"><img class="price-icon" src="assets/icons/icon-gold.png" alt="Золото" />Цена: 5000 золота + <img class="price-icon" src="assets/icons/rainbow_stone.png" alt="Радужный камень" />Радужный камень + <img class="price-icon" src="assets/icons/hero_hilt.png" alt="Рукоять" />Рукоять</span></button></li>
+        <li><button type="button" class="trade-btn" data-workshop-buy="rainbow-infl"><span class="trade-main">Покупка: 300 влияния</span><span class="trade-price"><img class="price-icon" src="assets/icons/rainbow_stone.png" alt="Радужный камень" />Цена: Радужный камень</span></button></li>
+      </ul>
+      <button type="button" class="barracks-close" id="workshopClose">Закрыть</button>
+    </div>
   </div>
 </div>
 
 <div id="hireModal">
-  <div class="barracks-card">
-    <h2 class="barracks-title">НАЕМНИКИ</h2>
-    <p>Выберите цель атаки на клетку ресурсов соперника.</p>
-    <ul class="barracks-list">
-      <li><button type="button" class="trade-btn" data-hire="lumber"><span class="trade-main">Покупка: Атака Лесопилки</span><span class="trade-price"><img class="price-icon" src="assets/icons/icon-gold.png" alt="Золото" />Цена: 250 золота</span></button></li>
-      <li><button type="button" class="trade-btn" data-hire="mine"><span class="trade-main">Покупка: Атака Шахты</span><span class="trade-price"><img class="price-icon" src="assets/icons/icon-gold.png" alt="Золото" />Цена: 500 золота</span></button></li>
-      <li><button type="button" class="trade-btn" data-hire="clay"><span class="trade-main">Покупка: Атака Глиняного карьера</span><span class="trade-price"><img class="price-icon" src="assets/icons/icon-gold.png" alt="Золото" />Цена: 750 золота</span></button></li>
-      <li><button type="button" class="trade-btn" data-hire="thief"><span class="trade-main">Покупка: Вор</span><span class="trade-price"><img class="price-icon" src="assets/icons/token.png" alt="Жетон" />Цена: 1 жетон</span></button></li>
-      <li><button type="button" class="trade-btn" data-hire="cutthroat"><span class="trade-main">Покупка: Головорезы</span><span class="trade-price"><img class="price-icon" src="assets/icons/icon-gold.png" alt="Золото" />Цена: 750 золота</span></button></li>
-    </ul>
-    <button type="button" class="barracks-close" id="hireClose">Закрыть</button>
+  <div class="character-modal-layout">
+    <div class="character-modal-portrait portrait-hire" aria-hidden="true"></div>
+    <div class="barracks-card">
+      <h2 class="barracks-title">НАЕМНИКИ</h2>
+      <p>Выберите цель атаки на клетку ресурсов соперника.</p>
+      <ul class="barracks-list">
+        <li><button type="button" class="trade-btn" data-hire="lumber"><span class="trade-main">Покупка: Атака Лесопилки</span><span class="trade-price"><img class="price-icon" src="assets/icons/icon-gold.png" alt="Золото" />Цена: 250 золота</span></button></li>
+        <li><button type="button" class="trade-btn" data-hire="mine"><span class="trade-main">Покупка: Атака Шахты</span><span class="trade-price"><img class="price-icon" src="assets/icons/icon-gold.png" alt="Золото" />Цена: 500 золота</span></button></li>
+        <li><button type="button" class="trade-btn" data-hire="clay"><span class="trade-main">Покупка: Атака Глиняного карьера</span><span class="trade-price"><img class="price-icon" src="assets/icons/icon-gold.png" alt="Золото" />Цена: 750 золота</span></button></li>
+        <li><button type="button" class="trade-btn" data-hire="thief"><span class="trade-main">Покупка: Вор</span><span class="trade-price"><img class="price-icon" src="assets/icons/token.png" alt="Жетон" />Цена: 1 жетон</span></button></li>
+        <li><button type="button" class="trade-btn" data-hire="cutthroat"><span class="trade-main">Покупка: Головорезы</span><span class="trade-price"><img class="price-icon" src="assets/icons/icon-gold.png" alt="Золото" />Цена: 750 золота</span></button></li>
+      </ul>
+      <button type="button" class="barracks-close" id="hireClose">Закрыть</button>
+    </div>
   </div>
 </div>
 
@@ -427,39 +439,45 @@
 </div>
 
 <div id="cityModal">
-  <div class="barracks-card">
-    <h2 class="barracks-title">ЗАДАНИЯ ГОРОДА</h2>
-    <p id="cityKillsInfo">Убито лагерей варваров: 0</p>
-    <ul class="barracks-list">
-      <li><button type="button" class="trade-btn" data-city-reward="5"><span class="trade-main">Покупка: 1500 золота</span><span class="trade-price"><img class="price-icon" src="assets/icons/barbarian_village.png" alt="Лагеря" />Цена: 5 лагерей</span></button></li>
-      <li><button type="button" class="trade-btn" data-city-reward="10"><span class="trade-main">Покупка: 3000 золота</span><span class="trade-price"><img class="price-icon" src="assets/icons/barbarian_village.png" alt="Лагеря" />Цена: 10 лагерей</span></button></li>
-      <li><button type="button" class="trade-btn" data-city-reward="20"><span class="trade-main">Покупка: 5000 золота</span><span class="trade-price"><img class="price-icon" src="assets/icons/barbarian_village.png" alt="Лагеря" />Цена: 20 лагерей</span></button></li>
-    </ul>
-    <h3 style="margin:16px 0 8px 0;">Обмен</h3>
-    <ul class="barracks-list">
-      <li><button type="button" class="trade-btn" data-city-exchange="100"><span class="trade-main">Покупка: 100 влияния</span><span class="trade-price"><img class="price-icon" src="assets/icons/icon-gold.png" alt="Золото" />Цена: 1000 золота</span></button></li>
-      <li><button type="button" class="trade-btn" data-city-exchange="300"><span class="trade-main">Покупка: 300 влияния</span><span class="trade-price"><img class="price-icon" src="assets/icons/icon-gold.png" alt="Золото" />Цена: 2500 золота</span></button></li>
-    </ul>
-    <button type="button" data-city-poison="apply-poison" class="barracks-close">Применить яд на короля</button>
-    <button type="button" class="barracks-close" id="cityClose">Закрыть</button>
+  <div class="character-modal-layout">
+    <div class="character-modal-portrait portrait-city" aria-hidden="true"></div>
+    <div class="barracks-card">
+      <h2 class="barracks-title">ЗАДАНИЯ ГОРОДА</h2>
+      <p id="cityKillsInfo">Убито лагерей варваров: 0</p>
+      <ul class="barracks-list">
+        <li><button type="button" class="trade-btn" data-city-reward="5"><span class="trade-main">Покупка: 1500 золота</span><span class="trade-price"><img class="price-icon" src="assets/icons/barbarian_village.png" alt="Лагеря" />Цена: 5 лагерей</span></button></li>
+        <li><button type="button" class="trade-btn" data-city-reward="10"><span class="trade-main">Покупка: 3000 золота</span><span class="trade-price"><img class="price-icon" src="assets/icons/barbarian_village.png" alt="Лагеря" />Цена: 10 лагерей</span></button></li>
+        <li><button type="button" class="trade-btn" data-city-reward="20"><span class="trade-main">Покупка: 5000 золота</span><span class="trade-price"><img class="price-icon" src="assets/icons/barbarian_village.png" alt="Лагеря" />Цена: 20 лагерей</span></button></li>
+      </ul>
+      <h3 style="margin:16px 0 8px 0;">Обмен</h3>
+      <ul class="barracks-list">
+        <li><button type="button" class="trade-btn" data-city-exchange="100"><span class="trade-main">Покупка: 100 влияния</span><span class="trade-price"><img class="price-icon" src="assets/icons/icon-gold.png" alt="Золото" />Цена: 1000 золота</span></button></li>
+        <li><button type="button" class="trade-btn" data-city-exchange="300"><span class="trade-main">Покупка: 300 влияния</span><span class="trade-price"><img class="price-icon" src="assets/icons/icon-gold.png" alt="Золото" />Цена: 2500 золота</span></button></li>
+      </ul>
+      <button type="button" data-city-poison="apply-poison" class="barracks-close">Применить яд на короля</button>
+      <button type="button" class="barracks-close" id="cityClose">Закрыть</button>
+    </div>
   </div>
 </div>
 
 <div id="mageModal">
-  <div class="mage-card">
-    <h2 class="barracks-title">МАГ</h2>
-    <p>
-      Маг предлагает заклинания и артефакт. Выберите эффект, оплатите и маг сразу применит его — клетка остаётся до конца своего таймера.
-    </p>
-    <div class="mage-actions">
-      <button type="button" class="trade-btn" data-mage-action="slow"><span class="trade-main">Покупка: Замедление врага (15 ходов)</span><span class="trade-price"><img class="price-icon" src="assets/icons/icon-gold.png" alt="Золото" />Цена: 500 золота</span></button>
-      <button type="button" class="trade-btn" data-mage-action="no-double"><span class="trade-main">Покупка: Отмена дубля врага (15 ходов)</span><span class="trade-price"><img class="price-icon" src="assets/icons/icon-gold.png" alt="Золото" />Цена: 500 золота</span></button>
-      <button type="button" class="trade-btn" data-mage-action="poison"><span class="trade-main">Покупка: Яд</span><span class="trade-price"><img class="price-icon" src="assets/icons/icon-gold.png" alt="Золото" />Цена: 4000 золота + <img class="price-icon" src="assets/icons/mystic_flower.png" alt="Таинственный цветок" />Таинственный цветок</span></button>
-      <button type="button" class="trade-btn" data-mage-action="flower-infl"><span class="trade-main">Покупка: 300 влияния</span><span class="trade-price"><img class="price-icon" src="assets/icons/mystic_flower.png" alt="Таинственный цветок" />Цена: Таинственный цветок</span></button>
-      <button type="button" class="trade-btn" data-mage-action="flower-gold"><span class="trade-main">Покупка: 1000 золота</span><span class="trade-price"><img class="price-icon" src="assets/icons/mystic_flower.png" alt="Таинственный цветок" />Цена: Таинственный цветок</span></button>
-      <button type="button" class="trade-btn" data-mage-action="clover-luck"><span class="trade-main">Покупка: Зелье удачи</span><span class="trade-price"><img class="price-icon" src="assets/icons/clover.png" alt="Клевер" />Цена: Клевер</span></button>
+  <div class="character-modal-layout">
+    <div class="character-modal-portrait portrait-mage" aria-hidden="true"></div>
+    <div class="mage-card">
+      <h2 class="barracks-title">МАГ</h2>
+      <p>
+        Маг предлагает заклинания и артефакт. Выберите эффект, оплатите и маг сразу применит его — клетка остаётся до конца своего таймера.
+      </p>
+      <div class="mage-actions">
+        <button type="button" class="trade-btn" data-mage-action="slow"><span class="trade-main">Покупка: Замедление врага (15 ходов)</span><span class="trade-price"><img class="price-icon" src="assets/icons/icon-gold.png" alt="Золото" />Цена: 500 золота</span></button>
+        <button type="button" class="trade-btn" data-mage-action="no-double"><span class="trade-main">Покупка: Отмена дубля врага (15 ходов)</span><span class="trade-price"><img class="price-icon" src="assets/icons/icon-gold.png" alt="Золото" />Цена: 500 золота</span></button>
+        <button type="button" class="trade-btn" data-mage-action="poison"><span class="trade-main">Покупка: Яд</span><span class="trade-price"><img class="price-icon" src="assets/icons/icon-gold.png" alt="Золото" />Цена: 4000 золота + <img class="price-icon" src="assets/icons/mystic_flower.png" alt="Таинственный цветок" />Таинственный цветок</span></button>
+        <button type="button" class="trade-btn" data-mage-action="flower-infl"><span class="trade-main">Покупка: 300 влияния</span><span class="trade-price"><img class="price-icon" src="assets/icons/mystic_flower.png" alt="Таинственный цветок" />Цена: Таинственный цветок</span></button>
+        <button type="button" class="trade-btn" data-mage-action="flower-gold"><span class="trade-main">Покупка: 1000 золота</span><span class="trade-price"><img class="price-icon" src="assets/icons/mystic_flower.png" alt="Таинственный цветок" />Цена: Таинственный цветок</span></button>
+        <button type="button" class="trade-btn" data-mage-action="clover-luck"><span class="trade-main">Покупка: Зелье удачи</span><span class="trade-price"><img class="price-icon" src="assets/icons/clover.png" alt="Клевер" />Цена: Клевер</span></button>
+      </div>
+      <button type="button" class="barracks-close" id="mageCancelBtn">Закрыть</button>
     </div>
-    <button type="button" class="barracks-close" id="mageCancelBtn">Закрыть</button>
   </div>
 </div>
 
@@ -495,16 +513,19 @@
 </div>
 
 <div id="masterModal">
-  <div class="guard-card">
-    <h3>Великий Мастер</h3>
-    <p>Мастер может изготовить рукоять меча героя.</p>
-    <div class="guard-actions">
-      <button id="masterBuyHilt" class="trade-btn"><span class="trade-main">Покупка: Рукоять меча героя</span><span class="trade-price"><img class="price-icon" src="assets/icons/icon-resources.png" alt="Ресурсы" />Цена: 800 ресурсов</span></button>
-      <button id="masterBuyGold" class="trade-btn"><span class="trade-main">Покупка: 1500 золота</span><span class="trade-price"><img class="price-icon" src="assets/icons/icon-resources.png" alt="Ресурсы" />Цена: 800 ресурсов</span></button>
-      <button id="masterBuyToken" class="trade-btn"><span class="trade-main">Покупка: Жетон</span><span class="trade-price"><img class="price-icon" src="assets/icons/icon-gold.png" alt="Золото" />Цена: 1000 золота</span></button>
-      <button id="masterBuyGoldRainbow" class="trade-btn"><span class="trade-main">Покупка: 1000 золота</span><span class="trade-price"><img class="price-icon" src="assets/icons/rainbow_stone.png" alt="Радужный камень" />Цена: Радужный камень</span></button>
-      <button id="masterBuyTerrorRing" class="trade-btn"><span class="trade-main">Покупка: Кольцо ужаса</span><span class="trade-price"><img class="price-icon" src="assets/icons/ring_persuasion.png" alt="Кольцо убеждения" />Цена: Кольцо убеждения</span></button>
-      <button id="masterCloseBtn">Закрыть</button>
+  <div class="character-modal-layout">
+    <div class="character-modal-portrait portrait-master" aria-hidden="true"></div>
+    <div class="guard-card">
+      <h3>Великий Мастер</h3>
+      <p>Мастер может изготовить рукоять меча героя.</p>
+      <div class="guard-actions">
+        <button id="masterBuyHilt" class="trade-btn"><span class="trade-main">Покупка: Рукоять меча героя</span><span class="trade-price"><img class="price-icon" src="assets/icons/icon-resources.png" alt="Ресурсы" />Цена: 800 ресурсов</span></button>
+        <button id="masterBuyGold" class="trade-btn"><span class="trade-main">Покупка: 1500 золота</span><span class="trade-price"><img class="price-icon" src="assets/icons/icon-resources.png" alt="Ресурсы" />Цена: 800 ресурсов</span></button>
+        <button id="masterBuyToken" class="trade-btn"><span class="trade-main">Покупка: Жетон</span><span class="trade-price"><img class="price-icon" src="assets/icons/icon-gold.png" alt="Золото" />Цена: 1000 золота</span></button>
+        <button id="masterBuyGoldRainbow" class="trade-btn"><span class="trade-main">Покупка: 1000 золота</span><span class="trade-price"><img class="price-icon" src="assets/icons/rainbow_stone.png" alt="Радужный камень" />Цена: Радужный камень</span></button>
+        <button id="masterBuyTerrorRing" class="trade-btn"><span class="trade-main">Покупка: Кольцо ужаса</span><span class="trade-price"><img class="price-icon" src="assets/icons/ring_persuasion.png" alt="Кольцо убеждения" />Цена: Кольцо убеждения</span></button>
+        <button id="masterCloseBtn">Закрыть</button>
+      </div>
     </div>
   </div>
 </div>
