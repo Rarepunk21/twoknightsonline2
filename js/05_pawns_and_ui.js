@@ -266,7 +266,10 @@ function initWorldEventSchedule() {
 }
 
 function isWorldEventActive(eventKey) {
-  return (activeWorldEvents[eventKey]?.remainingTurns || 0) > 0;
+  const state = activeWorldEvents[eventKey];
+  if (!state) return false;
+  if ((state.turnsUntilActive || 0) > 0) return false;
+  return (state.remainingTurns || 0) > 0;
 }
 
 function isNonAggressionPactActive() {
