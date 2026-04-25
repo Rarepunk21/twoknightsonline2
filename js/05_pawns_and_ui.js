@@ -4430,6 +4430,7 @@ function refreshCastleModal(key, playerIndex) {
         const mineLevel = stats.mineLevel || 0;
         const canUpgradeMine = mineLevel === 1 && stats.lumber === true && stats.clay === true;
         const mineLevel2AvailableForPlayer = canPlayerBuildMineLevel2(playerIndex);
+        const isBuyingMineLevel2 = canUpgradeMine && mineLevel < 2;
         if (mineLevel >= 2) {
           purchased = true;
         } else if (canUpgradeMine) {
@@ -4442,7 +4443,9 @@ function refreshCastleModal(key, playerIndex) {
         if (costLabel) {
           costLabel.textContent = String(buttonCost);
         }
-        btn.disabled = purchased || !mineLevel2AvailableForPlayer || playerResources < buttonCost;
+        btn.disabled = isBuyingMineLevel2
+          ? (!mineLevel2AvailableForPlayer || playerResources < buttonCost)
+          : (purchased || playerResources < buttonCost);
       } else {
         btn.disabled = purchased || playerResources < buttonCost;
       }
