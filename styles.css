@@ -877,9 +877,9 @@
       object-fit: contain;
       object-position: center bottom;
       filter:
-        drop-shadow(0 0 10px rgba(221, 214, 254, 0.7))
-        drop-shadow(0 0 22px rgba(196, 181, 253, 0.55))
-        drop-shadow(0 0 38px rgba(168, 85, 247, 0.45));
+        drop-shadow(0 0 10px rgba(255, 244, 214, 0.72))
+        drop-shadow(0 0 22px rgba(245, 223, 177, 0.58))
+        drop-shadow(0 0 38px rgba(224, 189, 129, 0.46));
     }
     .character-modal-layout .barracks-card,
     .character-modal-layout .guard-card,
