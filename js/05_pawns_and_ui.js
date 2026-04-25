@@ -116,6 +116,7 @@ let pendingGuardMove = null;
 let pendingGuardPlayerIndex = null;
 const POTION_INVIS_TURNS = 25;
 const POTION_LUCK_TURNS = 25;
+const CLOVER_LUCK_TURNS = 18;
 const BALLISTA_COST = 750;
 const BOLT_COST = 125;
 const TRAP_STUN_COST = 125;
@@ -212,7 +213,7 @@ const INVENTORY_ITEMS = [
   {key: "poison", label: "Яд", icon: "poison.png", count: player => player.poisonCount || 0},
   {key: "potion-invis", label: "Зелье невидимости", icon: "potion_invis.png", count: player => player.invisPotionCount || 0, useAction: "potion-invis"},
   {key: "potion-luck", label: "Зелье удачи", icon: "potion_luck.png", count: player => player.luckPotionCount || 0, useAction: "potion-luck"},
-  {key: "clover", label: "Клевер", icon: "clover.png", count: player => player.cloverCount || 0},
+  {key: "clover", label: "Клевер", icon: "clover.png", count: player => player.cloverCount || 0, useAction: "clover"},
   {key: "flower", label: "Таинственный цветок", icon: "mystic_flower.png", count: player => player.flowerCount || 0},
   {key: "token", label: "Жетон", icon: "token.png", count: player => player.tokenCount || 0},
   {key: "boots", label: "Сапоги", icon: "boots.png", count: player => player.bootsCount || 0},
@@ -994,6 +995,12 @@ function applyPotion(playerIndex, type) {
     player.luckPotionCount -= 1;
     player.luckTurnsRemaining = Math.max(player.luckTurnsRemaining || 0, POTION_LUCK_TURNS);
     showPickupToast("Зелье удачи: +1.6 к ресурсам на 25 ходов.");
+  }
+  if (type === "clover") {
+    if ((player.cloverCount || 0) <= 0) return;
+    player.cloverCount -= 1;
+    player.luckTurnsRemaining = Math.max(player.luckTurnsRemaining || 0, CLOVER_LUCK_TURNS);
+    showPrivatePickupToastForPlayer(playerIndex, "Клевер применён: Удача +1.6 к ресурсам на 18 ходов.");
   }
   if (type === "trap-stun") {
     placeTrapStun(playerIndex);
