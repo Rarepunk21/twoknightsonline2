@@ -145,6 +145,13 @@ const WORLD_EVENTS = {
     minDuration: 20,
     maxDuration: 40,
     getMessage: duration => `Король объявил о дополнительном налоге! Все покупки дороже на 30% в течении ${duration} ходов.`
+  },
+  merchantsStrike: {
+    key: "merchantsStrike",
+    title: "Королевский указ",
+    minDuration: 15,
+    maxDuration: 40,
+    getMessage: duration => `Торговцы объявили забастовку! ${duration} ходов они не будут продавать товары`
   }
 };
 let mineLevel2OwnerPlayerIndex = null;
@@ -243,6 +250,10 @@ function isNonAggressionPactActive() {
   return isWorldEventActive(WORLD_EVENTS.nonAggressionPact.key);
 }
 
+function isMerchantsStrikeActive() {
+  return isWorldEventActive(WORLD_EVENTS.merchantsStrike.key);
+}
+
 function getWorldEventMessage(eventKey, duration) {
   const def = WORLD_EVENTS[eventKey];
   return def?.getMessage ? def.getMessage(duration) : "";
@@ -251,6 +262,7 @@ function getWorldEventMessage(eventKey, duration) {
 function getWorldEventStatusLabel(eventKey) {
   if (eventKey === WORLD_EVENTS.nonAggressionPact.key) return "Пакт о ненападении";
   if (eventKey === WORLD_EVENTS.goldTax.key) return "Налог +30%";
+  if (eventKey === WORLD_EVENTS.merchantsStrike.key) return "Забастовка торговцев";
   return "Событие";
 }
 
@@ -2543,6 +2555,10 @@ function syncBarracksModalState(playerIndex) {
 }
 
 function openBarracks(playerIndex) {
+  if (isMerchantsStrikeActive()) {
+    showPrivatePickupToastForPlayer(playerIndex, "Торговцы бастуют и не продают товары.");
+    return;
+  }
   if (shouldDelegatePrivateUiToPlayer(playerIndex)) {
     emitPrivateUiToPlayer(playerIndex, "showBarracksModal", { playerIndex });
     return;
@@ -2626,6 +2642,10 @@ function syncLavkaModalState(playerIndex) {
 }
 
 function openLavka(playerIndex) {
+  if (isMerchantsStrikeActive()) {
+    showPrivatePickupToastForPlayer(playerIndex, "Торговцы бастуют и не продают товары.");
+    return;
+  }
   if (shouldDelegatePrivateUiToPlayer(playerIndex)) {
     emitPrivateUiToPlayer(playerIndex, "showLavkaModal", { playerIndex });
     return;
@@ -2722,6 +2742,10 @@ function syncWorkshopModalState(playerIndex) {
 }
 
 function openWorkshop(playerIndex) {
+  if (isMerchantsStrikeActive()) {
+    showPrivatePickupToastForPlayer(playerIndex, "Торговцы бастуют и не продают товары.");
+    return;
+  }
   if (shouldDelegatePrivateUiToPlayer(playerIndex)) {
     emitPrivateUiToPlayer(playerIndex, "showWorkshopModal", { playerIndex });
     return;
