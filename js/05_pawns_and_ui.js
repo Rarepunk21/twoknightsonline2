@@ -2141,7 +2141,7 @@ const THIEF_CASTLE_GOLD_LOSS = 1000;
 const CUTTHROAT_SPEED = 5;
 const CUTTHROAT_KILL_MIN = 13;
 const CUTTHROAT_KILL_MAX = 16;
-const CUTTHROAT_COST = 500;
+const CUTTHROAT_COST = 750;
 let repairPending = null;
 let gameEnded = false;
 
@@ -5300,7 +5300,7 @@ function finalizeMove(gridX, gridY) {
       endTurn();
       return;
     }
-    const battleResult = resolveDragonBattle(currentPlayerIndex, 50);
+    const battleResult = resolveDragonBattle(currentPlayerIndex, 75);
     showBattleModal(battleResult);
     if (battleResult && battleResult.winnerIndex === currentPlayerIndex) {
       showGameOver(currentPlayerIndex);
