@@ -152,6 +152,14 @@ const WORLD_EVENTS = {
     minDuration: 15,
     maxDuration: 40,
     getMessage: duration => `Торговцы объявили забастовку! ${duration} ходов они не будут продавать товары`
+  },
+  royalTax: {
+    key: "royalTax",
+    title: "Королевский указ",
+    rollsPerGame: 2,
+    instant: true,
+    minTax: 300,
+    maxTax: 1000
   }
 };
 let mineLevel2OwnerPlayerIndex = null;
@@ -232,12 +240,18 @@ function initWorldEventSchedule() {
   scheduledWorldEvents = [];
   activeWorldEvents = {};
   Object.values(WORLD_EVENTS).forEach(def => {
-    if (Math.random() >= WORLD_EVENT_TRIGGER_CHANCE) return;
-    scheduledWorldEvents.push({
-      key: def.key,
-      startTurn: randomIntRange(WORLD_EVENT_MIN_TURN, WORLD_EVENT_MAX_TURN),
-      duration: randomIntRange(def.minDuration, def.maxDuration)
-    });
+    const rolls = Math.max(1, Number(def.rollsPerGame) || 1);
+    for (let i = 0; i < rolls; i += 1) {
+      if (Math.random() >= WORLD_EVENT_TRIGGER_CHANCE) continue;
+      const event = {
+        key: def.key,
+        startTurn: randomIntRange(WORLD_EVENT_MIN_TURN, WORLD_EVENT_MAX_TURN)
+      };
+      if (!def.instant) {
+        event.duration = randomIntRange(def.minDuration, def.maxDuration);
+      }
+      scheduledWorldEvents.push(event);
+    }
   });
   scheduledWorldEvents.sort((a, b) => a.startTurn - b.startTurn);
 }
@@ -340,6 +354,47 @@ function announceWorldEvent(eventKey, duration) {
   });
 }
 
+function announcePlayerSpecificWorldEvent(payloadByPlayerIndex) {
+  const inMultiplayer =
+    typeof socket !== "undefined" &&
+    socket &&
+    typeof onlineMatchStarted !== "undefined" &&
+    onlineMatchStarted;
+  players.forEach((_, playerIndex) => {
+    const payload = payloadByPlayerIndex[playerIndex];
+    if (!payload) return;
+    if (!inMultiplayer) {
+      enqueueWorldEventModal(payload);
+      return;
+    }
+    if (typeof shouldDelegatePrivateUiToPlayer === "function" && shouldDelegatePrivateUiToPlayer(playerIndex)) {
+      emitPrivateUiToPlayer(playerIndex, "showWorldEventModal", payload);
+      return;
+    }
+    enqueueWorldEventModal(payload);
+  });
+}
+
+function applyRoyalTaxWorldEvent() {
+  const def = WORLD_EVENTS.royalTax;
+  if (!def) return;
+  const payloadByPlayerIndex = {};
+  players.forEach((player, playerIndex) => {
+    if (!player) return;
+    const taxAmount = randomIntRange(def.minTax, def.maxTax);
+    const paidAmount = Math.min(getTotalGold(player), taxAmount);
+    if (paidAmount > 0) {
+      spendGold(player, paidAmount);
+    }
+    updatePlayerResources(playerIndex);
+    payloadByPlayerIndex[playerIndex] = {
+      title: def.title,
+      text: `Король взыскал налог с подданных! Вы заплатили ${paidAmount} золота`
+    };
+  });
+  announcePlayerSpecificWorldEvent(payloadByPlayerIndex);
+}
+
 function tickWorldEvents() {
   Object.keys(activeWorldEvents).forEach(eventKey => {
     const state = activeWorldEvents[eventKey];
@@ -357,6 +412,10 @@ function activateScheduledWorldEvents() {
   if (!activating.length) return;
   scheduledWorldEvents = scheduledWorldEvents.filter(event => event.startTurn !== turnCounter);
   activating.forEach(event => {
+    if (event.key === WORLD_EVENTS.royalTax.key) {
+      applyRoyalTaxWorldEvent();
+      return;
+    }
     activeWorldEvents[event.key] = {
       startTurn: turnCounter,
       duration: event.duration,
