@@ -456,7 +456,7 @@ function renderUpperWorldView() {
     cell.classList.remove("inactive");
     cell.classList.add("important", "barbarian");
     cell.textContent = "";
-    cell.title = "ВАРВАРЫ";
+    cell.title = `ВАРВАРЫ: ${entry.army} войск`;
     cell.setAttribute("data-barbarian", "true");
     setCellIcon(cell, "barbarian_village.png", "Варвары");
   });
@@ -3952,8 +3952,8 @@ function resolveBarbarianBattle(playerIndex, barbarian) {
   const playerWon = winnerIndex === playerIndex;
   const rewardMultiplier = turnCounter >= 150 ? 1.7 : 1;
   const influenceReward = playerWon ? Math.floor(scaleBarbarianReward(initialDefArmy, 35, 60) * rewardMultiplier) : 0;
-  const goldReward = playerWon ? Math.floor(scaleBarbarianReward(initialDefArmy, 200, 350) * rewardMultiplier) : 0;
-  const resourceReward = playerWon ? Math.floor(scaleBarbarianReward(initialDefArmy, 20, 35) * rewardMultiplier) : 0;
+  const goldReward = playerWon ? Math.floor(scaleBarbarianReward(initialDefArmy, 100, 175) * rewardMultiplier) : 0;
+  const resourceReward = playerWon ? Math.floor(scaleBarbarianReward(initialDefArmy, 10, 17) * rewardMultiplier) : 0;
   let penaltyGold = 0;
   let penaltyResources = 0;
   if (playerWon) {

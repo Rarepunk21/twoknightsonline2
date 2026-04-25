@@ -1105,6 +1105,7 @@ function spawnBarbarianCell() {
   setCellIcon(cell, "barbarian_village.png", "Варвары");
   cell.setAttribute("data-barbarian", "true");
   barbarianCells.push({key, x, y, army});
+  cell.title = `ВАРВАРЫ: ${army} войск`;
   return true;
 }
 
