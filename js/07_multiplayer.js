@@ -238,6 +238,7 @@ function buildState() {
       barbarianKills: p.barbarianKills,
       slowTurnsRemaining: p.slowTurnsRemaining,
       noDoubleTurnsRemaining: p.noDoubleTurnsRemaining,
+      royalBlessingTurnsRemaining: p.royalBlessingTurnsRemaining,
       poisonCount: p.poisonCount,
       invisPotionCount: p.invisPotionCount,
       luckPotionCount: p.luckPotionCount,
@@ -355,6 +356,7 @@ function buildState() {
     bridgeOpenedKeys: Array.from(bridgeOpenedKeys),
     scheduledWorldEvents: typeof cloneWorldEventSchedule === "function" ? cloneWorldEventSchedule() : [],
     activeWorldEvents: typeof cloneActiveWorldEvents === "function" ? cloneActiveWorldEvents() : {},
+    kingAuctionState: typeof cloneKingAuctionState === "function" ? cloneKingAuctionState() : null,
     gameWinnerIndex,
     upperWormhole: shallowClone(upperWormhole),
     wormholeSpawnTurns: shallowClone(wormholeSpawnTurns),
@@ -654,6 +656,9 @@ function applyState(state) {
       Object.entries(state.activeWorldEvents).map(([key, value]) => [key, { ...value }])
     );
   }
+  if (typeof normalizeKingAuctionState === "function") {
+    kingAuctionState = normalizeKingAuctionState(state.kingAuctionState);
+  }
 
   state.players?.forEach((data, idx) => {
     if (!players[idx]) return;
@@ -802,6 +807,9 @@ function applyState(state) {
   }
   updateTurnUI();
   updateStatusPanel();
+  if (typeof syncKingAuctionModalVisibility === "function") {
+    syncKingAuctionModalVisibility();
+  }
   if (incomingBattleId !== lastBattleId) {
     lastBattleId = incomingBattleId;
     lastBattleResult = incomingBattleResult;
@@ -1014,6 +1022,12 @@ function performPrivateUiAction(action) {
       }
       if (actionType === "use" && payload.useAction && typeof applyPotion === "function") {
         applyPotion(playerIndex, payload.useAction);
+      }
+      return;
+    }
+    if (modalType === "kingAuction") {
+      if (actionType === "submit" && typeof submitKingAuctionBid === "function") {
+        submitKingAuctionBid(playerIndex, payload.amount);
       }
       return;
     }
@@ -1396,6 +1410,10 @@ if (socket) {
       });
       return;
     }
+    if (type === "showKingAuctionModal" && typeof openKingAuctionModal === "function") {
+      openKingAuctionModal(payload.playerIndex);
+      return;
+    }
     if (type === "activateBallistaMode") {
       if (Number.isInteger(payload.playerIndex)) {
         ballistaModePlayerIndex = payload.playerIndex;
@@ -1523,7 +1541,7 @@ if (socket) {
     if (!onlineMatchStarted) return;
     if (isHost || applyingRemoteState || performingRemoteAction) return;
     if (onlineGamePaused) return;
-    if (e.target?.closest?.("#castleModal, #hireModal, #trollCaveModal, #battleModal, #worldEventModal, #barracksModal, #lavkaModal, #workshopModal, #cityModal, #masterModal, #mageModal, #stoneModal, #stoneResultModal, #repairModal, #guardModal")) {
+    if (e.target?.closest?.("#castleModal, #hireModal, #trollCaveModal, #battleModal, #worldEventModal, #kingAuctionModal, #barracksModal, #lavkaModal, #workshopModal, #cityModal, #masterModal, #mageModal, #stoneModal, #stoneResultModal, #repairModal, #guardModal")) {
       return;
     }
     const action = getActionFromEvent(e);
@@ -1545,7 +1563,7 @@ if (socket) {
     if (!onlineMatchStarted) return;
     if (!isHost || applyingRemoteState || performingRemoteAction) return;
     if (onlineGamePaused) return;
-    if (e.target?.closest?.("#castleModal, #hireModal, #trollCaveModal, #battleModal, #worldEventModal, #barracksModal, #lavkaModal, #workshopModal, #cityModal, #masterModal, #mageModal, #stoneModal, #stoneResultModal, #repairModal, #guardModal")) {
+    if (e.target?.closest?.("#castleModal, #hireModal, #trollCaveModal, #battleModal, #worldEventModal, #kingAuctionModal, #barracksModal, #lavkaModal, #workshopModal, #cityModal, #masterModal, #mageModal, #stoneModal, #stoneResultModal, #repairModal, #guardModal")) {
       return;
     }
     const action = getActionFromEvent(e);

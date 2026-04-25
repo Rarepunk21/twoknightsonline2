@@ -438,6 +438,40 @@
   </div>
 </div>
 
+<div id="kingAuctionModal">
+  <div class="character-modal-layout">
+    <div class="character-modal-portrait" aria-hidden="true"><img class="character-modal-portrait-image" src="assets/portraits/king.png" alt="" /></div>
+    <div class="guard-card king-auction-card">
+      <h3>АУКЦИОН КОРОЛЯ</h3>
+      <p id="kingAuctionDescription">
+        Король объявляет аукцион на свое благославление! Победитель получит скидку 30% на покупки за золото в казарме, лавке и мастерской на 15-25 ходов. Скидка не суммируется с кольцом убеждения.
+      </p>
+      <div class="king-auction-offers">
+        <section class="king-auction-offer" data-king-auction-player="0">
+          <h4 class="king-auction-player-name">Игрок 1</h4>
+          <p class="king-auction-player-gold">Доступно золота: <span data-king-auction-gold="0">0</span></p>
+          <label class="king-auction-input-wrap">
+            <span>Сумма пожертвования</span>
+            <input type="number" min="0" step="1" inputmode="numeric" data-king-auction-input="0" />
+          </label>
+          <button type="button" data-king-auction-submit="0">Пожертвовать</button>
+          <p class="king-auction-status" data-king-auction-status="0"></p>
+        </section>
+        <section class="king-auction-offer" data-king-auction-player="1">
+          <h4 class="king-auction-player-name">Игрок 2</h4>
+          <p class="king-auction-player-gold">Доступно золота: <span data-king-auction-gold="1">0</span></p>
+          <label class="king-auction-input-wrap">
+            <span>Сумма пожертвования</span>
+            <input type="number" min="0" step="1" inputmode="numeric" data-king-auction-input="1" />
+          </label>
+          <button type="button" data-king-auction-submit="1">Пожертвовать</button>
+          <p class="king-auction-status" data-king-auction-status="1"></p>
+        </section>
+      </div>
+    </div>
+  </div>
+</div>
+
 <div id="cityModal">
   <div class="character-modal-layout">
     <div class="character-modal-portrait" aria-hidden="true"><img class="character-modal-portrait-image" src="assets/portraits/king.png" alt="" /></div>

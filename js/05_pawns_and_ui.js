@@ -21,6 +21,7 @@ const players = [
     barbarianKills: 0,
     slowTurnsRemaining: 0,
     noDoubleTurnsRemaining: 0,
+    royalBlessingTurnsRemaining: 0,
     poisonCount: 0,
     invisPotionCount: 0,
     luckPotionCount: 0,
@@ -62,6 +63,7 @@ const players = [
     barbarianKills: 0,
     slowTurnsRemaining: 0,
     noDoubleTurnsRemaining: 0,
+    royalBlessingTurnsRemaining: 0,
     poisonCount: 0,
     invisPotionCount: 0,
     luckPotionCount: 0,
@@ -107,6 +109,9 @@ const MAGE_SLOW_DURATION = 15;
 const MAGE_NO_DOUBLE_DURATION = 15;
 const MAGE_SLOW_PENALTY = 3;
 const POISON_INFLUENCE_THRESHOLD = 1000;
+const ROYAL_BLESSING_DISCOUNT = 0.3;
+const ROYAL_BLESSING_MIN_TURNS = 15;
+const ROYAL_BLESSING_MAX_TURNS = 25;
 playerColorDots.forEach((dot, index) => {
   const player = players[index];
   if (player) dot.style.background = player.color;
@@ -189,6 +194,11 @@ const WORLD_EVENTS = {
     minTax: 300,
     maxTax: 1000
   },
+  kingAuction: {
+    key: "kingAuction",
+    title: "Аукцион короля",
+    instant: true
+  },
   quarantine: {
     key: "quarantine",
     title: "Королевский указ",
@@ -202,6 +212,61 @@ let mineLevel2OwnerPlayerIndex = null;
 let scheduledWorldEvents = [];
 let activeWorldEvents = {};
 let worldEventModalQueue = [];
+let kingAuctionState = normalizeKingAuctionState();
+let kingAuctionViewerPlayerIndex = null;
+const kingAuctionDraftBids = players.map(() => "");
+
+function normalizeKingAuctionState(state = null) {
+  const bids = players.map((_, index) => {
+    const value = state?.bids?.[index];
+    return Number.isFinite(value) ? Math.max(0, Math.floor(value)) : null;
+  });
+  const submitted = players.map((_, index) => Boolean(state?.submitted?.[index]));
+  return {
+    active: Boolean(state?.active),
+    bids,
+    submitted
+  };
+}
+
+function cloneKingAuctionState() {
+  return normalizeKingAuctionState(kingAuctionState);
+}
+
+function isKingAuctionActive() {
+  return Boolean(kingAuctionState?.active);
+}
+
+function isRoyalBlessingScope(scope) {
+  return scope === "barracks" || scope === "lavka" || scope === "workshop";
+}
+
+function getPlayerGoldDiscountRate(player, scope = "general") {
+  let rate = 0;
+  if (player && player.ringCount) {
+    rate = Math.max(rate, 0.15);
+  }
+  if (player && (player.royalBlessingTurnsRemaining || 0) > 0 && isRoyalBlessingScope(scope)) {
+    rate = Math.max(rate, ROYAL_BLESSING_DISCOUNT);
+  }
+  return rate;
+}
+
+function isKingAuctionBlockingGameplay() {
+  return isKingAuctionActive();
+}
+
+function sanitizeKingAuctionBidAmount(value) {
+  return Math.max(0, Math.floor(Number(value) || 0));
+}
+
+function getKingAuctionResultTitle() {
+  return WORLD_EVENTS.kingAuction?.title || "Аукцион короля";
+}
+
+function getKingAuctionIntroText() {
+  return "Король объявляет аукцион на свое благославление! Победитель получит скидку 30% на покупки за золото в казарме, лавке и мастерской на 15-25 ходов. Скидка не суммируется с кольцом убеждения.";
+}
 
 function canPlayerBuildMineLevel2(playerIndex) {
   return mineLevel2OwnerPlayerIndex === null || mineLevel2OwnerPlayerIndex === playerIndex;
@@ -391,6 +456,202 @@ function closeWorldEventModal() {
   scheduleAutoRoll();
 }
 
+function syncKingAuctionModalState(viewerPlayerIndex = kingAuctionViewerPlayerIndex) {
+  if (!kingAuctionModal || !Array.isArray(kingAuctionOfferCards)) return;
+  const showAllPlayers = !Number.isInteger(viewerPlayerIndex);
+  if (kingAuctionDescription) {
+    kingAuctionDescription.textContent = getKingAuctionIntroText();
+  }
+  let visibleCards = 0;
+  kingAuctionOfferCards.forEach(card => {
+    const playerIndex = Number(card.dataset.kingAuctionPlayer);
+    const player = players[playerIndex];
+    const submitted = Boolean(kingAuctionState?.submitted?.[playerIndex]);
+    const shouldShow =
+      Boolean(player) &&
+      (showAllPlayers || playerIndex === viewerPlayerIndex) &&
+      (!showAllPlayers || !submitted);
+    card.classList.toggle("is-hidden", !shouldShow);
+    if (!shouldShow || !player) return;
+    visibleCards += 1;
+    const nameElem = card.querySelector(".king-auction-player-name");
+    if (nameElem) {
+      nameElem.textContent = player.name || `Игрок ${playerIndex + 1}`;
+      nameElem.style.color = player.color || "";
+    }
+    const goldElem = card.querySelector(`[data-king-auction-gold="${playerIndex}"]`);
+    if (goldElem) {
+      goldElem.textContent = String(getTotalGold(player));
+    }
+    const input = card.querySelector(`[data-king-auction-input="${playerIndex}"]`);
+    if (input) {
+      if (document.activeElement !== input) {
+        input.value = kingAuctionDraftBids[playerIndex] || "";
+      }
+      input.max = String(getTotalGold(player));
+      input.disabled = submitted;
+    }
+    const button = card.querySelector(`[data-king-auction-submit="${playerIndex}"]`);
+    if (button) {
+      button.disabled = submitted;
+    }
+    const status = card.querySelector(`[data-king-auction-status="${playerIndex}"]`);
+    if (status) {
+      status.textContent = submitted ? "Ставка отправлена." : "";
+    }
+  });
+  kingAuctionModal.style.display = isKingAuctionActive() && visibleCards > 0 ? "flex" : "none";
+  refreshTurnControls();
+}
+
+function openKingAuctionModal(playerIndex = null) {
+  kingAuctionViewerPlayerIndex = Number.isInteger(playerIndex) ? playerIndex : null;
+  syncKingAuctionModalState(kingAuctionViewerPlayerIndex);
+}
+
+function closeKingAuctionModal() {
+  if (!kingAuctionModal) return;
+  kingAuctionModal.style.display = "none";
+  kingAuctionViewerPlayerIndex = null;
+  refreshTurnControls();
+}
+
+function syncKingAuctionModalVisibility() {
+  if (!kingAuctionModal) return;
+  const inMultiplayer =
+    typeof socket !== "undefined" &&
+    socket &&
+    typeof onlineMatchStarted !== "undefined" &&
+    onlineMatchStarted;
+  if (!isKingAuctionActive()) {
+    closeKingAuctionModal();
+    return;
+  }
+  if (!inMultiplayer) {
+    openKingAuctionModal(null);
+    return;
+  }
+  if (typeof localPlayerIndex !== "number") return;
+  if (kingAuctionState.submitted?.[localPlayerIndex]) {
+    closeKingAuctionModal();
+    return;
+  }
+  openKingAuctionModal(localPlayerIndex);
+}
+
+function announceKingAuctionResult(result) {
+  const payloadByPlayerIndex = {};
+  const bids = Array.isArray(result?.bids) ? result.bids : players.map(() => 0);
+  players.forEach((player, playerIndex) => {
+    if (!player) return;
+    const ownBid = bids[playerIndex] || 0;
+    const opponentIndex = getOpponentIndex(playerIndex);
+    const opponentBid = bids[opponentIndex] || 0;
+    if (!Number.isInteger(result?.winnerPlayerIndex)) {
+      payloadByPlayerIndex[playerIndex] = {
+        title: getKingAuctionResultTitle(),
+        text: `Король не смог определить победителя. Вы предложили ${ownBid} золота, соперник — ${opponentBid}. Благославление никому не досталось.`
+      };
+      return;
+    }
+    if (playerIndex === result.winnerPlayerIndex) {
+      payloadByPlayerIndex[playerIndex] = {
+        title: getKingAuctionResultTitle(),
+        text: `Вы предложили ${ownBid} золота против ${opponentBid} у соперника и победили в аукционе. Благославление действует ${result.duration} ходов.`
+      };
+      return;
+    }
+    payloadByPlayerIndex[playerIndex] = {
+      title: getKingAuctionResultTitle(),
+      text: `Вы предложили ${ownBid} золота, но соперник заплатил ${opponentBid}. Благославление на ${result.duration} ходов досталось ему.`
+    };
+  });
+  announcePlayerSpecificWorldEvent(payloadByPlayerIndex);
+}
+
+function resolveKingAuctionWorldEvent() {
+  if (!isKingAuctionActive()) return;
+  const bids = players.map((_, index) => sanitizeKingAuctionBidAmount(kingAuctionState?.bids?.[index]));
+  let winnerPlayerIndex = null;
+  if (bids[0] !== bids[1]) {
+    winnerPlayerIndex = bids[0] > bids[1] ? 0 : 1;
+  }
+  const duration = Number.isInteger(winnerPlayerIndex)
+    ? randomIntRange(ROYAL_BLESSING_MIN_TURNS, ROYAL_BLESSING_MAX_TURNS)
+    : 0;
+  if (Number.isInteger(winnerPlayerIndex) && players[winnerPlayerIndex]) {
+    players[winnerPlayerIndex].royalBlessingTurnsRemaining = duration;
+  }
+  const result = { winnerPlayerIndex, duration, bids };
+  kingAuctionState = normalizeKingAuctionState();
+  closeKingAuctionModal();
+  players.forEach((_, playerIndex) => updatePlayerResources(playerIndex));
+  announceKingAuctionResult(result);
+  refreshTurnControls();
+  scheduleAutoRoll();
+}
+
+function submitKingAuctionBid(playerIndex, amount) {
+  if (!isKingAuctionActive() || !Number.isInteger(playerIndex) || !players[playerIndex]) return false;
+  if (kingAuctionState.submitted?.[playerIndex]) return false;
+  const player = players[playerIndex];
+  const normalizedAmount = sanitizeKingAuctionBidAmount(amount);
+  const totalGold = getTotalGold(player);
+  if (normalizedAmount > totalGold) {
+    showPrivatePickupToastForPlayer(playerIndex, "У вас недостаточно золота для такой ставки.");
+    syncKingAuctionModalState();
+    return false;
+  }
+  if (normalizedAmount > 0) {
+    spendGold(player, normalizedAmount);
+  }
+  kingAuctionState.active = true;
+  kingAuctionState.bids[playerIndex] = normalizedAmount;
+  kingAuctionState.submitted[playerIndex] = true;
+  kingAuctionDraftBids[playerIndex] = "";
+  updatePlayerResources(playerIndex);
+  const allSubmitted = kingAuctionState.submitted.every(Boolean);
+  const actionText = normalizedAmount > 0
+    ? `Королю передано ${normalizedAmount} золота.`
+    : "Вы решили не жертвовать золото.";
+  showPrivatePickupToastForPlayer(
+    playerIndex,
+    allSubmitted ? actionText : `${actionText} Ожидаем ставку соперника.`
+  );
+  if (Number.isInteger(kingAuctionViewerPlayerIndex) && kingAuctionViewerPlayerIndex === playerIndex) {
+    closeKingAuctionModal();
+  } else {
+    syncKingAuctionModalState();
+  }
+  if (allSubmitted) {
+    resolveKingAuctionWorldEvent();
+  } else {
+    refreshTurnControls();
+  }
+  return true;
+}
+
+function startKingAuctionWorldEvent() {
+  kingAuctionState = normalizeKingAuctionState({ active: true });
+  kingAuctionDraftBids.fill("");
+  const inMultiplayer =
+    typeof socket !== "undefined" &&
+    socket &&
+    typeof onlineMatchStarted !== "undefined" &&
+    onlineMatchStarted;
+  if (!inMultiplayer) {
+    openKingAuctionModal(null);
+    return;
+  }
+  players.forEach((_, playerIndex) => {
+    if (shouldDelegatePrivateUiToPlayer(playerIndex)) {
+      emitPrivateUiToPlayer(playerIndex, "showKingAuctionModal", { playerIndex });
+      return;
+    }
+    openKingAuctionModal(playerIndex);
+  });
+}
+
 function announceWorldEvent(eventKey, duration) {
   const def = WORLD_EVENTS[eventKey];
   if (!def) return;
@@ -556,6 +817,10 @@ function activateScheduledWorldEvents() {
     }
     if (event.key === WORLD_EVENTS.royalTax.key) {
       applyRoyalTaxWorldEvent();
+      return;
+    }
+    if (event.key === WORLD_EVENTS.kingAuction.key) {
+      startKingAuctionWorldEvent();
       return;
     }
     activeWorldEvents[event.key] = {
@@ -1519,6 +1784,7 @@ function updatePlayerResources(playerIndex) {
   const positiveSpan = panel.querySelector('[data-stat="positive-buffs"]');
   if (positiveSpan) {
     const parts = [];
+    if ((player.royalBlessingTurnsRemaining || 0) > 0) parts.push(`Благославление ${player.royalBlessingTurnsRemaining}`);
     if ((player.invisTurnsRemaining || 0) > 0) parts.push(`Невидимость ${player.invisTurnsRemaining}`);
     if ((player.luckTurnsRemaining || 0) > 0) parts.push(`Удача ${player.luckTurnsRemaining}`);
     if ((player.stoneBonusRollsRemaining || 0) > 0) parts.push(`Ходы подряд ${player.stoneBonusRollsRemaining}`);
@@ -1717,6 +1983,44 @@ if (worldEventModal) {
     if (event.target === worldEventModal) {
       closeWorldEventModal();
     }
+  });
+}
+if (kingAuctionInputElems.length) {
+  kingAuctionInputElems.forEach(input => {
+    input.addEventListener("input", () => {
+      const playerIndex = Number(input.dataset.kingAuctionInput);
+      if (!Number.isInteger(playerIndex)) return;
+      const sanitized = String(input.value || "").replace(/[^\d]/g, "");
+      kingAuctionDraftBids[playerIndex] = sanitized;
+      if (input.value !== sanitized) {
+        input.value = sanitized;
+      }
+    });
+  });
+}
+if (kingAuctionSubmitButtons.length) {
+  kingAuctionSubmitButtons.forEach(button => {
+    button.addEventListener("click", () => {
+      const playerIndex = Number(button.dataset.kingAuctionSubmit);
+      const player = players[playerIndex];
+      if (!Number.isInteger(playerIndex) || !player) return;
+      const amount = sanitizeKingAuctionBidAmount(kingAuctionDraftBids[playerIndex]);
+      if (amount > getTotalGold(player)) {
+        showPrivatePickupToastForPlayer(playerIndex, "У вас недостаточно золота для такой ставки.");
+        return;
+      }
+      if (shouldRoutePrivateUiActionToHost(playerIndex)) {
+        emitPrivateUiActionToHost({
+          modalType: "kingAuction",
+          actionType: "submit",
+          playerIndex,
+          payload: { amount }
+        });
+        closeKingAuctionModal();
+        return;
+      }
+      submitKingAuctionBid(playerIndex, amount);
+    });
   });
 }
 
@@ -2605,9 +2909,14 @@ function getTotalGold(player) {
 }
 
 function getDiscountedGoldCost(player, baseCost) {
+  return getDiscountedGoldCostForScope(player, baseCost);
+}
+
+function getDiscountedGoldCostForScope(player, baseCost, scope = "general") {
   let cost = Number(baseCost) || 0;
-  if (player && player.ringCount) {
-    cost = Math.round(cost * 0.85);
+  const discountRate = getPlayerGoldDiscountRate(player, scope);
+  if (discountRate > 0) {
+    cost = Math.round(cost * (1 - discountRate));
   }
   if (isWorldEventActive(WORLD_EVENTS.goldTax.key)) {
     cost = Math.round(cost * WORLD_EVENT_GOLD_TAX_MULTIPLIER);
@@ -2758,8 +3067,8 @@ function syncBarracksModalState(playerIndex) {
   const player = players[playerIndex];
   if (!player) return;
   const gold = getTotalGold(player);
-  const cost50 = getDiscountedGoldCost(player, 2000);
-  const cost130 = getDiscountedGoldCost(player, 4000);
+  const cost50 = getDiscountedGoldCostForScope(player, 2000, "barracks");
+  const cost130 = getDiscountedGoldCostForScope(player, 4000, "barracks");
   barracksButtons.forEach(btn => {
     const type = btn.getAttribute("data-buy");
     if (type === "army-50") btn.disabled = gold < cost50;
@@ -2808,14 +3117,14 @@ barracksButtons.forEach(btn => {
     const player = players[barracksPlayerIndex];
     const type = btn.getAttribute("data-buy");
     if (type === "army-50") {
-      const cost = getDiscountedGoldCost(player, 2000);
+      const cost = getDiscountedGoldCostForScope(player, 2000, "barracks");
       if (getTotalGold(player) < cost) return;
       spendGold(player, cost);
       grantPurchasedArmy(barracksPlayerIndex, 50);
       flashPrice(btn, cost, "assets/icons/icon-gold.png", "Золото");
     }
     if (type === "army-130") {
-      const cost = getDiscountedGoldCost(player, 4000);
+      const cost = getDiscountedGoldCostForScope(player, 4000, "barracks");
       if (getTotalGold(player) < cost) return;
       spendGold(player, cost);
       grantPurchasedArmy(barracksPlayerIndex, 130);
@@ -2838,8 +3147,8 @@ function syncLavkaModalState(playerIndex) {
   const player = players[playerIndex];
   if (!player) return;
   const gold = getTotalGold(player);
-  const costPotion = getDiscountedGoldCost(player, 250);
-  const costBoots = getDiscountedGoldCost(player, 1500);
+  const costPotion = getDiscountedGoldCostForScope(player, 250, "lavka");
+  const costBoots = getDiscountedGoldCostForScope(player, 1500, "lavka");
   lavkaButtons.forEach(btn => {
     const type = btn.getAttribute("data-lavka-buy");
     if (type === "res-1000-infl") btn.disabled = getTotalResources(player) < 1000;
@@ -2902,7 +3211,7 @@ lavkaButtons.forEach(btn => {
       flashPrice(btn, 1000, "assets/icons/icon-resources.png", "Ресурсы");
     }
     if (type === "boots") {
-      const cost = getDiscountedGoldCost(player, 1500);
+      const cost = getDiscountedGoldCostForScope(player, 1500, "lavka");
       if (getTotalGold(player) < cost || (player.rainbowStoneCount || 0) <= 0) return;
       spendGold(player, cost);
       player.rainbowStoneCount -= 1;
@@ -2912,7 +3221,7 @@ lavkaButtons.forEach(btn => {
       flashPrice(btn, 1, "assets/icons/rainbow_stone.png", "Радужный камень");
     }
     if (type === "potion-invis") {
-      const cost = getDiscountedGoldCost(player, 250);
+      const cost = getDiscountedGoldCostForScope(player, 250, "lavka");
       if (getTotalGold(player) < cost) return;
       spendGold(player, cost);
       player.invisPotionCount = (player.invisPotionCount || 0) + 1;
@@ -2920,7 +3229,7 @@ lavkaButtons.forEach(btn => {
       flashPrice(btn, cost, "assets/icons/icon-gold.png", "Золото");
     }
     if (type === "potion-luck") {
-      const cost = getDiscountedGoldCost(player, 250);
+      const cost = getDiscountedGoldCostForScope(player, 250, "lavka");
       if (getTotalGold(player) < cost) return;
       spendGold(player, cost);
       player.luckPotionCount = (player.luckPotionCount || 0) + 1;
@@ -2937,9 +3246,9 @@ function syncWorkshopModalState(playerIndex) {
   if (!player) return;
   workshopPlayerIndex = playerIndex;
   const gold = getTotalGold(player);
-  const costArmor = getDiscountedGoldCost(player, 1500);
-  const costSword = getDiscountedGoldCost(player, 2500);
-  const costHeroSword = getDiscountedGoldCost(player, 5000);
+  const costArmor = getDiscountedGoldCostForScope(player, 1500, "workshop");
+  const costSword = getDiscountedGoldCostForScope(player, 2500, "workshop");
+  const costHeroSword = getDiscountedGoldCostForScope(player, 5000, "workshop");
   workshopButtons.forEach(btn => {
     const type = btn.getAttribute("data-workshop-buy");
     if (type === "armor") btn.disabled = gold < costArmor || player.hasArmor === true;
@@ -2995,7 +3304,7 @@ workshopButtons.forEach(btn => {
     const player = players[workshopPlayerIndex];
     const type = btn.getAttribute("data-workshop-buy");
     if (type === "armor" && !player.hasArmor) {
-      const cost = getDiscountedGoldCost(player, 1500);
+      const cost = getDiscountedGoldCostForScope(player, 1500, "workshop");
       if (getTotalGold(player) < cost) return;
       spendGold(player, cost);
       player.hasArmor = true;
@@ -3004,7 +3313,7 @@ workshopButtons.forEach(btn => {
       flashPrice(btn, cost, "assets/icons/icon-gold.png", "Золото");
     }
     if (type === "sword" && !player.hasWorkshopSword) {
-      const cost = getDiscountedGoldCost(player, 2500);
+      const cost = getDiscountedGoldCostForScope(player, 2500, "workshop");
       if (getTotalGold(player) < cost) return;
       spendGold(player, cost);
       player.hasWorkshopSword = true;
@@ -3013,7 +3322,7 @@ workshopButtons.forEach(btn => {
       flashPrice(btn, cost, "assets/icons/icon-gold.png", "Золото");
     }
     if (type === "hero-sword" && !player.hasSword) {
-      const cost = getDiscountedGoldCost(player, 5000);
+      const cost = getDiscountedGoldCostForScope(player, 5000, "workshop");
       if (getTotalGold(player) < cost || (player.rainbowStoneCount || 0) <= 0 || (player.heroHiltCount || 0) <= 0) return;
       spendGold(player, cost);
       player.rainbowStoneCount -= 1;
@@ -5353,6 +5662,7 @@ const TURN_BLOCKING_MODALS = [
   () => barracksModal,
   () => lavkaModal,
   () => workshopModal,
+  () => kingAuctionModal,
   () => hireModal,
   () => repairModal,
   () => guardModal,
@@ -5374,6 +5684,7 @@ function isElementShown(elem) {
 
 function canLocalPlayerAct() {
   if (typeof onlineGamePaused !== "undefined" && onlineGamePaused) return false;
+  if (isKingAuctionBlockingGameplay()) return false;
   const inMultiplayer = typeof socket !== "undefined" && socket;
   if (!inMultiplayer) return true;
   if (typeof localPlayerIndex === "undefined" || localPlayerIndex === null) return true;
@@ -5519,7 +5830,7 @@ function completeTurnAdvance() {
 function tryFinishPendingTurn(manual = false) {
   if (!pendingTurnAdvance) return false;
   if (!manual && pendingTurnManualOnly) return false;
-  if (hasBlockingTurnModalOpen() || hasDeferredPrivateTurnBlock()) {
+  if (hasBlockingTurnModalOpen() || hasDeferredPrivateTurnBlock() || isKingAuctionBlockingGameplay()) {
     refreshTurnControls();
     return false;
   }
@@ -5529,7 +5840,7 @@ function tryFinishPendingTurn(manual = false) {
 
 function requestTurnAdvance() {
   pendingTurnAdvance = true;
-  pendingTurnManualOnly = hasBlockingTurnModalOpen() || hasDeferredPrivateTurnBlock();
+  pendingTurnManualOnly = hasBlockingTurnModalOpen() || hasDeferredPrivateTurnBlock() || isKingAuctionBlockingGameplay();
   refreshTurnControls();
   if (!pendingTurnManualOnly) {
     tryFinishPendingTurn(false);
@@ -5544,6 +5855,9 @@ function tickAllTimedBuffs() {
     }
     if (player.noDoubleTurnsRemaining > 0) {
       player.noDoubleTurnsRemaining = Math.max(0, player.noDoubleTurnsRemaining - 1);
+    }
+    if (player.royalBlessingTurnsRemaining > 0) {
+      player.royalBlessingTurnsRemaining = Math.max(0, player.royalBlessingTurnsRemaining - 1);
     }
     if (player.invisTurnsRemaining > 0) {
       player.invisTurnsRemaining = Math.max(0, player.invisTurnsRemaining - 1);
@@ -6019,6 +6333,7 @@ function scheduleAutoRoll() {
   if (typeof socket !== "undefined" && socket && !isHost) return;
   if (gameEnded) return;
   if (movesRemaining > 0) return;
+  if (isKingAuctionBlockingGameplay()) return;
   if (rollInfo) {
     rollInfo.innerHTML = 'БРОСОК <span class="dots"><span class="dot"></span><span class="dot"></span><span class="dot"></span></span>';
     rollInfo.classList.add("rolling");
@@ -6035,7 +6350,7 @@ function tryAutoRoll() {
   if (typeof socket !== "undefined" && socket && !isHost) return;
   if (gameEnded) return;
   if (movesRemaining > 0) return;
-  if (hasBlockingTurnModalOpen() || hasDeferredPrivateTurnBlock()) return;
+  if (hasBlockingTurnModalOpen() || hasDeferredPrivateTurnBlock() || isKingAuctionBlockingGameplay()) return;
   if (processRobberAmbushChance()) return;
   doRoll();
 }
@@ -6145,6 +6460,9 @@ function resetGameState() {
   activeWorldEvents = {};
   worldEventModalQueue = [];
   closeWorldEventModal();
+  kingAuctionState = normalizeKingAuctionState();
+  kingAuctionDraftBids.fill("");
+  closeKingAuctionModal();
   clearReachable();
   if (autoRollTimer) {
     clearTimeout(autoRollTimer);
@@ -6173,6 +6491,7 @@ function resetGameState() {
     player.barbarianKills = 0;
     player.slowTurnsRemaining = 0;
     player.noDoubleTurnsRemaining = 0;
+    player.royalBlessingTurnsRemaining = 0;
     player.poisonCount = 0;
     player.invisPotionCount = 0;
     player.luckPotionCount = 0;

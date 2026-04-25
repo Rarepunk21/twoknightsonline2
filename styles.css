@@ -828,6 +828,7 @@
     #barracksModal,
     #lavkaModal,
     #workshopModal,
+    #kingAuctionModal,
     #cityModal,
     #hireModal,
     #repairModal,
@@ -1101,6 +1102,15 @@
       background: rgba(10, 20, 33, 0.6);
       z-index: 88;
     }
+    #kingAuctionModal {
+      position: fixed;
+      inset: 0;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      background: rgba(10, 20, 33, 0.68);
+      z-index: 89;
+    }
     .guard-card {
       width: min(420px, 90vw);
       background: rgba(19, 32, 48, 0.95);
@@ -1172,6 +1182,82 @@
     .guard-actions button:disabled {
       opacity: 0.45;
       cursor: not-allowed;
+    }
+    .king-auction-card {
+      width: min(560px, 100%);
+      gap: 16px;
+    }
+    .king-auction-card h3 {
+      margin: 0;
+      font-size: 1.45rem;
+      letter-spacing: 0.08em;
+    }
+    .king-auction-offers {
+      display: grid;
+      gap: 12px;
+    }
+    .king-auction-offer {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      padding: 14px;
+      border: 1px solid #334155;
+      border-radius: 10px;
+      background: rgba(8, 15, 26, 0.45);
+      text-align: left;
+    }
+    .king-auction-offer.is-hidden {
+      display: none;
+    }
+    .king-auction-player-name {
+      margin: 0;
+      font-size: 1.05rem;
+      letter-spacing: 0.04em;
+    }
+    .king-auction-player-gold {
+      margin: 0;
+      color: #f8fafc;
+      font-weight: 600;
+    }
+    .king-auction-input-wrap {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      color: #cbd5e1;
+      font-size: 0.92rem;
+    }
+    .king-auction-input-wrap input {
+      width: 100%;
+      padding: 10px 12px;
+      border-radius: 8px;
+      border: 1px solid #3a4c67;
+      background: #0f1b2a;
+      color: #f8fafc;
+      font-size: 1rem;
+      box-sizing: border-box;
+    }
+    .king-auction-input-wrap input:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+    .king-auction-offer button {
+      padding: 10px 12px;
+      border-radius: 8px;
+      border: 1px solid #5b4320;
+      background: linear-gradient(180deg, #9a6b2f 0%, #7a4b17 100%);
+      color: #fff7ed;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    .king-auction-offer button:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
+    }
+    .king-auction-status {
+      min-height: 18px;
+      margin: 0;
+      font-size: 0.88rem;
+      color: #fbbf24;
     }
     @media (max-width: 900px) {
       .character-modal-layout {
