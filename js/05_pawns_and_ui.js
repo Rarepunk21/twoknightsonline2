@@ -118,7 +118,7 @@ const POTION_INVIS_TURNS = 25;
 const POTION_LUCK_TURNS = 25;
 const BALLISTA_COST = 750;
 const BOLT_COST = 125;
-const TRAP_STUN_COST = 150;
+const TRAP_STUN_COST = 125;
 const TRAP_STUN_DURATION = 3;
 const SPECIAL_ARTIFACT_SLOT_LIMIT = 3;
 const BALLISTA_RANGE = 12;
@@ -1679,7 +1679,7 @@ function getCellHoverTooltipData(key) {
       lines: [
         "Рукоять меча героя — 800 ресурсов",
         "1500 золота — 800 ресурсов",
-        "Жетон — 1500 золота",
+        "Жетон — 1000 золота",
         "1000 золота — радужный камень",
         "Кольцо ужаса — кольцо убеждения"
       ]
@@ -2132,7 +2132,7 @@ function syncMasterModalState(playerIndex) {
     masterBuyGold.disabled = !player || totalResources < 800;
   }
   if (masterBuyToken) {
-    masterBuyToken.disabled = !player || getTotalGold(player) < 1500;
+    masterBuyToken.disabled = !player || getTotalGold(player) < 1000;
   }
   if (masterBuyGoldRainbow) {
     masterBuyGoldRainbow.disabled = !player || (player.rainbowStoneCount || 0) <= 0;
@@ -2206,12 +2206,12 @@ if (masterBuyToken) {
     if (pendingMasterPlayerIndex === null) return;
     const player = players[pendingMasterPlayerIndex];
     if (!player) return;
-    if (getTotalGold(player) < 1500) return;
-    spendGold(player, 1500);
+    if (getTotalGold(player) < 1000) return;
+    spendGold(player, 1000);
     player.tokenCount = (player.tokenCount || 0) + 1;
     updatePlayerResources(pendingMasterPlayerIndex);
     showPickupToast("Жетон получен.");
-    flashPrice(masterBuyToken, 1500, "assets/icons/icon-gold.png", "Золото");
+    flashPrice(masterBuyToken, 1000, "assets/icons/icon-gold.png", "Золото");
   });
 }
 
@@ -4135,7 +4135,7 @@ function resolveTrollBattle(playerIndex, trollArmy) {
   if (playerWon) {
     const hadTrollClub = (player.trollClubCount || 0) > 0;
     player.trollClubCount = (player.trollClubCount || 0) + 1;
-    const gotToken = Math.random() < 0.5;
+    const gotToken = Math.random() < 0.75;
     if (gotToken) {
       player.tokenCount = (player.tokenCount || 0) + 1;
     }
@@ -4967,7 +4967,6 @@ function depositCastleArmy(amount) {
   updatePlayerResources(castleModalPlayerIndex);
   recalcPlayerResourceIncome(castleModalPlayerIndex);
   refreshCastleModal(castleModalKey, castleModalPlayerIndex);
-  showPickupToast(`В замок: +${amount} войск`);
   return true;
 }
 
@@ -4983,7 +4982,6 @@ function withdrawCastleArmy(amount) {
   player.pocket.army += amount;
   updatePlayerResources(castleModalPlayerIndex);
   refreshCastleModal(castleModalKey, castleModalPlayerIndex);
-  showPickupToast(`В карман: +${amount} войск`);
   return true;
 }
 
