@@ -750,6 +750,7 @@ const BARBARIAN_RESPAWN_MIN = 8;
 const BARBARIAN_RESPAWN_MAX = 14;
 const MAX_BARBARIAN_CELLS = 3;
 const LATE_GAME_MAX_BARBARIAN_CELLS = 4;
+const BARBARIAN_FURY_MULTIPLIER = 1.3;
 let turnCounter = 0;
 let barbarianPhaseStarted = false;
 let barbarianCells = [];
@@ -1084,6 +1085,43 @@ function getBarbarianCellLimit() {
   return turnCounter >= BARBARIAN_LATE_GAME_TURN ? LATE_GAME_MAX_BARBARIAN_CELLS : MAX_BARBARIAN_CELLS;
 }
 
+function getBarbarianBaseArmyForTurn() {
+  const baseArmy = Math.floor(Math.random() * 11) + 10;
+  const strengthMultiplier = turnCounter >= 150 ? 1.75 : 1;
+  return Math.max(1, Math.ceil(baseArmy * strengthMultiplier));
+}
+
+function getBarbarianEffectiveArmy(baseArmy) {
+  const normalizedBaseArmy = Math.max(1, Math.floor(Number(baseArmy) || 0));
+  if (typeof isBarbarianFuryActive === "function" && isBarbarianFuryActive()) {
+    return Math.max(1, Math.ceil(normalizedBaseArmy * BARBARIAN_FURY_MULTIPLIER));
+  }
+  return normalizedBaseArmy;
+}
+
+function updateBarbarianCellVisual(entry) {
+  if (!entry) return;
+  const key = entry.key || `${entry.x},${entry.y}`;
+  const cell = grid[key];
+  if (!cell) return;
+  cell.classList.remove("inactive");
+  cell.classList.add("important", "barbarian");
+  cell.textContent = "";
+  setCellIcon(cell, "barbarian_village.png", "Варвары");
+  cell.setAttribute("data-barbarian", "true");
+  cell.title = `ВАРВАРЫ: ${entry.army} войск`;
+}
+
+function syncBarbarianStrengths() {
+  barbarianCells.forEach(entry => {
+    if (!entry) return;
+    const baseArmy = Math.max(1, Math.floor(Number(entry.baseArmy ?? entry.army) || 0));
+    entry.baseArmy = baseArmy;
+    entry.army = getBarbarianEffectiveArmy(baseArmy);
+    updateBarbarianCellVisual(entry);
+  });
+}
+
 function spawnBarbarianCell() {
   if (barbarianCells.length >= getBarbarianCellLimit()) return false;
   const availableKeys = getAvailableBarbarianKeys();
@@ -1093,9 +1131,8 @@ function spawnBarbarianCell() {
   const [xStr, yStr] = key.split(",");
   const x = Number(xStr);
   const y = Number(yStr);
-  const baseArmy = Math.floor(Math.random() * 11) + 10;
-  const strengthMultiplier = turnCounter >= 150 ? 1.75 : 1;
-  const army = Math.max(1, Math.ceil(baseArmy * strengthMultiplier));
+  const baseArmy = getBarbarianBaseArmyForTurn();
+  const army = getBarbarianEffectiveArmy(baseArmy);
   const cell = grid[key];
   if (!cell) return false;
   cell.classList.remove("inactive");
@@ -1104,7 +1141,9 @@ function spawnBarbarianCell() {
   cell.title = "ВАРВАРЫ";
   setCellIcon(cell, "barbarian_village.png", "Варвары");
   cell.setAttribute("data-barbarian", "true");
-  barbarianCells.push({key, x, y, army});
+  const entry = { key, x, y, baseArmy, army };
+  barbarianCells.push(entry);
+  updateBarbarianCellVisual(entry);
   cell.title = `ВАРВАРЫ: ${army} войск`;
   return true;
 }

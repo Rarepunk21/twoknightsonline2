@@ -568,9 +568,10 @@ function applyBarbarianCell(entry) {
   cell.classList.remove("inactive");
   cell.classList.add("important", "barbarian");
   cell.textContent = "";
-  cell.title = "BARBARIANS";
+  const army = Math.max(0, Number(entry.army) || 0);
+  cell.title = `ВАРВАРЫ: ${army} войск`;
   cell.setAttribute("data-barbarian", "true");
-  setCellIcon(cell, "barbarian_village.png", "Barbarians");
+  setCellIcon(cell, "barbarian_village.png", "Варвары");
 }
 
 function applyMercenary(entry) {

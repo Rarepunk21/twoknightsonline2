@@ -131,6 +131,7 @@ const WORLD_EVENT_MIN_TURN = 15;
 const WORLD_EVENT_MAX_TURN = 300;
 const WORLD_EVENT_TRIGGER_CHANCE = 0.5;
 const WORLD_EVENT_GOLD_TAX_MULTIPLIER = 1.3;
+const WORLD_EVENT_TROLL_HUNT_GOLD_REWARD = 1000;
 const WORLD_EVENTS = {
   nonAggressionPact: {
     key: "nonAggressionPact",
@@ -152,6 +153,32 @@ const WORLD_EVENTS = {
     minDuration: 15,
     maxDuration: 40,
     getMessage: duration => `Торговцы объявили забастовку! ${duration} ходов они не будут продавать товары`
+  },
+  barbarianFury: {
+    key: "barbarianFury",
+    title: "Королевский указ",
+    minDuration: 10,
+    maxDuration: 30,
+    getMessage: duration => `Варвары готовятся к войне... Они стали сильнее на ${duration} ходов, будь осторожен.`
+  },
+  trollHunt: {
+    key: "trollHunt",
+    title: "Королевский указ",
+    minDuration: 10,
+    maxDuration: 20,
+    getMessage: duration => `Король объявил охоту на троллей! За убийство троллей рыцари получат 1000 золота в течении ${duration} ходов.`
+  },
+  mercenaryRiot: {
+    key: "mercenaryRiot",
+    title: "Королевский указ",
+    instant: true,
+    getMessage: () => "Наемники грабят ближайшие деревни, будьте осторожны."
+  },
+  wealthTax: {
+    key: "wealthTax",
+    title: "Королевский указ",
+    instant: true,
+    getMessage: () => "Король собирает налог с богачей! Самый богатый игрок заплатит 15% от своих накоплений."
   },
   royalTax: {
     key: "royalTax",
@@ -284,6 +311,14 @@ function isQuarantineActive() {
   return isWorldEventActive(WORLD_EVENTS.quarantine.key);
 }
 
+function isBarbarianFuryActive() {
+  return isWorldEventActive(WORLD_EVENTS.barbarianFury.key);
+}
+
+function isTrollHuntActive() {
+  return isWorldEventActive(WORLD_EVENTS.trollHunt.key);
+}
+
 function getWorldEventMessage(eventKey, duration) {
   const def = WORLD_EVENTS[eventKey];
   return def?.getMessage ? def.getMessage(duration) : "";
@@ -293,6 +328,8 @@ function getWorldEventStatusLabel(eventKey) {
   if (eventKey === WORLD_EVENTS.nonAggressionPact.key) return "Пакт о ненападении";
   if (eventKey === WORLD_EVENTS.goldTax.key) return "Налог +30%";
   if (eventKey === WORLD_EVENTS.merchantsStrike.key) return "Забастовка торговцев";
+  if (eventKey === WORLD_EVENTS.barbarianFury.key) return "Ярость варваров";
+  if (eventKey === WORLD_EVENTS.trollHunt.key) return "Охота на троллей";
   if (eventKey === WORLD_EVENTS.quarantine.key) return "Карантин";
   return "Событие";
 }
@@ -419,7 +456,69 @@ function applyRoyalTaxWorldEvent() {
   announcePlayerSpecificWorldEvent(payloadByPlayerIndex);
 }
 
+function applyWealthTaxWorldEvent() {
+  const def = WORLD_EVENTS.wealthTax;
+  if (!def) return;
+  const payloadByPlayerIndex = {};
+  const totals = players
+    .map((player, playerIndex) => ({ player, playerIndex, totalGold: player ? getTotalGold(player) : 0 }))
+    .filter(({ player }) => Boolean(player));
+  if (totals.length === 0) return;
+
+  const maxGold = Math.max(...totals.map(entry => entry.totalGold));
+  const richestPlayers = totals.filter(entry => entry.totalGold === maxGold);
+
+  if (richestPlayers.length !== 1) {
+    totals.forEach(({ playerIndex }) => {
+      payloadByPlayerIndex[playerIndex] = {
+        title: def.title,
+        text: "Король собирает налог с богачей! Но в этот раз самый богатый игрок не определился."
+      };
+    });
+    announcePlayerSpecificWorldEvent(payloadByPlayerIndex);
+    return;
+  }
+
+  const richest = richestPlayers[0];
+  const taxAmount = Math.min(richest.totalGold, Math.max(0, Math.round(richest.totalGold * 0.15)));
+  if (taxAmount > 0) {
+    spendGold(richest.player, taxAmount);
+  }
+  richest.player.resources.influence += 150;
+
+  totals.forEach(({ playerIndex }) => {
+    updatePlayerResources(playerIndex);
+  });
+
+  totals.forEach(({ playerIndex }) => {
+    payloadByPlayerIndex[playerIndex] = playerIndex === richest.playerIndex
+      ? {
+          title: def.title,
+          text: `Король собирает налог с богачей! Вы заплатили ${taxAmount} золота и получили 150 влияния.`
+        }
+      : {
+          title: def.title,
+          text: `Король собирает налог с богачей! Самый богатый игрок заплатил ${taxAmount} золота.`
+        };
+  });
+
+  announcePlayerSpecificWorldEvent(payloadByPlayerIndex);
+}
+
+function applyMercenaryRiotWorldEvent() {
+  const def = WORLD_EVENTS.mercenaryRiot;
+  if (!def) return;
+  players.forEach((player, playerIndex) => {
+    if (!player) return;
+    const target = findRandomOwnedResourceTarget(playerIndex);
+    if (!target) return;
+    spawnWorldEventMercenary(target, getMercenaryStrength(target.entry?.featureKey));
+  });
+  announceWorldEvent(def.key, 0);
+}
+
 function tickWorldEvents() {
+  let shouldSyncBarbarianStrengths = false;
   Object.keys(activeWorldEvents).forEach(eventKey => {
     const state = activeWorldEvents[eventKey];
     if (!state) return;
@@ -430,8 +529,14 @@ function tickWorldEvents() {
     state.remainingTurns = Math.max(0, (state.remainingTurns || 0) - 1);
     if (state.remainingTurns <= 0) {
       delete activeWorldEvents[eventKey];
+      if (eventKey === WORLD_EVENTS.barbarianFury.key) {
+        shouldSyncBarbarianStrengths = true;
+      }
     }
   });
+  if (shouldSyncBarbarianStrengths && typeof syncBarbarianStrengths === "function") {
+    syncBarbarianStrengths();
+  }
 }
 
 function activateScheduledWorldEvents() {
@@ -440,6 +545,14 @@ function activateScheduledWorldEvents() {
   if (!activating.length) return;
   scheduledWorldEvents = scheduledWorldEvents.filter(event => event.startTurn !== turnCounter);
   activating.forEach(event => {
+    if (event.key === WORLD_EVENTS.wealthTax.key) {
+      applyWealthTaxWorldEvent();
+      return;
+    }
+    if (event.key === WORLD_EVENTS.mercenaryRiot.key) {
+      applyMercenaryRiotWorldEvent();
+      return;
+    }
     if (event.key === WORLD_EVENTS.royalTax.key) {
       applyRoyalTaxWorldEvent();
       return;
@@ -450,6 +563,9 @@ function activateScheduledWorldEvents() {
       remainingTurns: event.duration,
       turnsUntilActive: Math.max(0, event.turnsUntilActive || 0)
     };
+    if (event.key === WORLD_EVENTS.barbarianFury.key && typeof syncBarbarianStrengths === "function") {
+      syncBarbarianStrengths();
+    }
     announceWorldEvent(event.key, event.duration);
   });
 }
@@ -2409,6 +2525,11 @@ const HIRE_ATTACK_COSTS = {
   mine: 500,
   clay: 750
 };
+const MERCENARY_ATTACK_STRENGTHS = {
+  lumber: 8,
+  mine: 13,
+  clay: 18
+};
 const thieves = [];
 let thiefIdCounter = 1;
 const cutthroats = [];
@@ -3008,6 +3129,39 @@ function findEnemyCastleKey(playerIndex) {
   return getFirstOwnedCastleKey(opponentIndex);
 }
 
+function getMercenaryStrength(featureKey) {
+  return Math.max(1, Number(MERCENARY_ATTACK_STRENGTHS[featureKey]) || 1);
+}
+
+function findRandomOwnedResourceTarget(playerIndex) {
+  const candidates = Object.entries(specialByPos)
+    .map(([key, entry]) => ({ key, entry }))
+    .filter(({ entry }) => entry.ownerIndex === playerIndex)
+    .filter(({ entry }) => ["lumber", "mine", "clay"].includes(entry.featureKey))
+    .filter(({ entry }) => entry.disabled !== true);
+  if (candidates.length === 0) return null;
+  return candidates[Math.floor(Math.random() * candidates.length)];
+}
+
+function spawnWorldEventMercenary(target, strength) {
+  if (!target) return false;
+  const spawnPos = findHireSpawnCell();
+  if (!spawnPos) return false;
+  const key = `${spawnPos.x},${spawnPos.y}`;
+  setCellToMercenary(spawnPos.x, spawnPos.y);
+  mercenaries.push({
+    id: mercenaryIdCounter++,
+    key,
+    x: spawnPos.x,
+    y: spawnPos.y,
+    ownerIndex: null,
+    targetKey: target.key,
+    featureKey: target.entry?.featureKey || null,
+    strength: Math.max(1, Number(strength) || 1)
+  });
+  return true;
+}
+
 function spawnMercenary(playerIndex, featureKey, strength, baseCost) {
   const target = findEnemySpecialCell(playerIndex, featureKey);
   if (!target) {
@@ -3159,17 +3313,17 @@ function buyHireOption(type) {
   const costClay = getDiscountedGoldCost(player, HIRE_ATTACK_COSTS.clay);
   const costCutthroat = getDiscountedGoldCost(player, CUTTHROAT_COST);
   if (type === "lumber") {
-    const ok = spawnMercenary(hirePlayerIndex, "lumber", 8, HIRE_ATTACK_COSTS.lumber);
+    const ok = spawnMercenary(hirePlayerIndex, "lumber", getMercenaryStrength("lumber"), HIRE_ATTACK_COSTS.lumber);
     if (ok) flashPrice(button, costLumber, "assets/icons/icon-gold.png", "Р—РѕР»РѕС‚Рѕ");
     return ok;
   }
   if (type === "mine") {
-    const ok = spawnMercenary(hirePlayerIndex, "mine", 13, HIRE_ATTACK_COSTS.mine);
+    const ok = spawnMercenary(hirePlayerIndex, "mine", getMercenaryStrength("mine"), HIRE_ATTACK_COSTS.mine);
     if (ok) flashPrice(button, costMine, "assets/icons/icon-gold.png", "Р—РѕР»РѕС‚Рѕ");
     return ok;
   }
   if (type === "clay") {
-    const ok = spawnMercenary(hirePlayerIndex, "clay", 18, HIRE_ATTACK_COSTS.clay);
+    const ok = spawnMercenary(hirePlayerIndex, "clay", getMercenaryStrength("clay"), HIRE_ATTACK_COSTS.clay);
     if (ok) flashPrice(button, costClay, "assets/icons/icon-gold.png", "Р—РѕР»РѕС‚Рѕ");
     return ok;
   }
@@ -4132,12 +4286,17 @@ function resolveTrollBattle(playerIndex, trollArmy) {
     winnerIndex = null;
   }
   const playerWon = winnerIndex === playerIndex;
+  let eventGoldReward = 0;
   if (playerWon) {
     const hadTrollClub = (player.trollClubCount || 0) > 0;
     player.trollClubCount = (player.trollClubCount || 0) + 1;
     const gotToken = Math.random() < 0.75;
     if (gotToken) {
       player.tokenCount = (player.tokenCount || 0) + 1;
+    }
+    if (isTrollHuntActive()) {
+      eventGoldReward = WORLD_EVENT_TROLL_HUNT_GOLD_REWARD;
+      player.pocket.gold += eventGoldReward;
     }
     if (!hadTrollClub) {
       player.attack += 8;
@@ -4147,6 +4306,9 @@ function resolveTrollBattle(playerIndex, trollArmy) {
     }
     if (gotToken) {
       showPickupToast("Вы получили Жетон.");
+    }
+    if (eventGoldReward > 0) {
+      showLayerAwarePickupToast(playerIndex, `Охота на троллей: +${eventGoldReward} золота в карман.`);
     }
   }
   updatePlayerResources(playerIndex);
@@ -4161,7 +4323,8 @@ function resolveTrollBattle(playerIndex, trollArmy) {
     defenderRemaining,
     winnerName,
     winnerIndex,
-    defenderInitial: initialDefArmy
+    defenderInitial: initialDefArmy,
+    goldReward: eventGoldReward
   };
 }
 
@@ -4529,13 +4692,18 @@ function buildBattleSummaryLines(result) {
       ].filter(Boolean);
     }
     if (result.type === "troll") {
+      const rewardLine =
+        result.winnerIndex === result.attackerIndex && result.goldReward
+          ? `Награда: +${result.goldReward} золота`
+          : null;
       return [
         "<strong>\u0411\u041e\u0419 \u0421 \u0422\u0420\u041e\u041b\u041b\u042f\u041c\u0418</strong>",
         `${result.attackerName}: \u041f\u043e\u0442\u0435\u0440\u044f\u043b ${result.attackerLost} \u0432\u043e\u0439\u0441\u043a`,
         `\u0422\u0440\u043e\u043b\u043b\u0438: \u041f\u043e\u0442\u0435\u0440\u044f\u043b\u0438 ${result.defenderLost} \u0432\u043e\u0439\u0441\u043a`,
         `\u0422\u0440\u043e\u043b\u043b\u0438: \u0418\u0437\u043d\u0430\u0447\u0430\u043b\u044c\u043d\u043e ${result.defenderInitial} \u0432\u043e\u0439\u0441\u043a`,
         "\u00A0",
-        `\u041f\u043e\u0431\u0435\u0434\u0438\u0442\u0435\u043b\u044c : ${result.winnerName}`
+        `\u041f\u043e\u0431\u0435\u0434\u0438\u0442\u0435\u043b\u044c : ${result.winnerName}`,
+        rewardLine
       ].filter(Boolean);
     }
     if (result.type === "dragon") {
