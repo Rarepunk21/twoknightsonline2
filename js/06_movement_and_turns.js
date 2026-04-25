@@ -95,6 +95,10 @@ game.addEventListener("click", e => {
   const barbarianTarget = barbarianCells.find(cell => cell.key === key);
   const isGuardCell = guardKey && key === guardKey;
   if (isGuardCell) {
+    if (typeof isQuarantineActive === "function" && isQuarantineActive()) {
+      showPrivatePickupToastForPlayer(currentPlayerIndex, "В городе карантин. Стража никого не пропускает.");
+      return;
+    }
     const playerPosKey = `${currentPlayer.x},${currentPlayer.y}`;
     const nearGuard = guardApproachKeys.has(playerPosKey);
     if (!guardAccess[currentPlayerIndex] && !nearGuard) {

@@ -160,6 +160,14 @@ const WORLD_EVENTS = {
     instant: true,
     minTax: 300,
     maxTax: 1000
+  },
+  quarantine: {
+    key: "quarantine",
+    title: "Королевский указ",
+    minDuration: 15,
+    maxDuration: 25,
+    delayedActivationTurns: 5,
+    getMessage: duration => `В городе карантин! Приказ никого не впускать ${duration} ходов. Покиньте город в течении 5 ходов.`
   }
 };
 let mineLevel2OwnerPlayerIndex = null;
@@ -249,6 +257,7 @@ function initWorldEventSchedule() {
       };
       if (!def.instant) {
         event.duration = randomIntRange(def.minDuration, def.maxDuration);
+        event.turnsUntilActive = Math.max(0, Number(def.delayedActivationTurns) || 0);
       }
       scheduledWorldEvents.push(event);
     }
@@ -268,6 +277,10 @@ function isMerchantsStrikeActive() {
   return isWorldEventActive(WORLD_EVENTS.merchantsStrike.key);
 }
 
+function isQuarantineActive() {
+  return isWorldEventActive(WORLD_EVENTS.quarantine.key);
+}
+
 function getWorldEventMessage(eventKey, duration) {
   const def = WORLD_EVENTS[eventKey];
   return def?.getMessage ? def.getMessage(duration) : "";
@@ -277,6 +290,7 @@ function getWorldEventStatusLabel(eventKey) {
   if (eventKey === WORLD_EVENTS.nonAggressionPact.key) return "Пакт о ненападении";
   if (eventKey === WORLD_EVENTS.goldTax.key) return "Налог +30%";
   if (eventKey === WORLD_EVENTS.merchantsStrike.key) return "Забастовка торговцев";
+  if (eventKey === WORLD_EVENTS.quarantine.key) return "Карантин";
   return "Событие";
 }
 
@@ -287,8 +301,12 @@ function renderWorldEventStatus(playerIndex) {
   const list = root.querySelector(".world-event-status-list");
   if (!list) return;
   const activeEntries = Object.entries(activeWorldEvents)
-    .filter(([, state]) => (state?.remainingTurns || 0) > 0)
-    .sort((a, b) => (a[1].remainingTurns || 0) - (b[1].remainingTurns || 0));
+    .filter(([, state]) => (state?.remainingTurns || 0) > 0 || (state?.turnsUntilActive || 0) > 0)
+    .sort((a, b) => {
+      const aValue = (a[1].turnsUntilActive || 0) > 0 ? a[1].turnsUntilActive : (a[1].remainingTurns || 0);
+      const bValue = (b[1].turnsUntilActive || 0) > 0 ? b[1].turnsUntilActive : (b[1].remainingTurns || 0);
+      return aValue - bValue;
+    });
   if (!activeEntries.length) {
     list.textContent = "Нет активных событий";
     return;
@@ -296,6 +314,9 @@ function renderWorldEventStatus(playerIndex) {
   list.innerHTML = activeEntries
     .map(([eventKey, state]) => {
       const label = getWorldEventStatusLabel(eventKey);
+      if ((state.turnsUntilActive || 0) > 0) {
+        return `<div class="world-event-status-item"><strong>${label}</strong>: активируется через ${state.turnsUntilActive} ходов</div>`;
+      }
       const turns = state.remainingTurns || 0;
       return `<div class="world-event-status-item"><strong>${label}</strong>: ещё ${turns} ходов</div>`;
     })
@@ -399,6 +420,10 @@ function tickWorldEvents() {
   Object.keys(activeWorldEvents).forEach(eventKey => {
     const state = activeWorldEvents[eventKey];
     if (!state) return;
+    if ((state.turnsUntilActive || 0) > 0) {
+      state.turnsUntilActive = Math.max(0, state.turnsUntilActive - 1);
+      return;
+    }
     state.remainingTurns = Math.max(0, (state.remainingTurns || 0) - 1);
     if (state.remainingTurns <= 0) {
       delete activeWorldEvents[eventKey];
@@ -419,7 +444,8 @@ function activateScheduledWorldEvents() {
     activeWorldEvents[event.key] = {
       startTurn: turnCounter,
       duration: event.duration,
-      remainingTurns: event.duration
+      remainingTurns: event.duration,
+      turnsUntilActive: Math.max(0, event.turnsUntilActive || 0)
     };
     announceWorldEvent(event.key, event.duration);
   });
@@ -5441,7 +5467,7 @@ function showReachable() {
     if (steps === movesRemaining) continue;
     const player = players[currentPlayerIndex];
     const canAttemptGuard = guardAccess[currentPlayerIndex];
-    if (isGuardCell && !canAttemptGuard) continue;
+    if (isGuardCell && (isQuarantineActive() || !canAttemptGuard)) continue;
     for (const {dx, dy} of MOVES_DIRS) {
       const nx = x + dx;
       const ny = y + dy;
