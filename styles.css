@@ -1118,6 +1118,15 @@
       background: rgba(10, 20, 33, 0.65);
       z-index: 90;
     }
+    #worldEventModal {
+      position: fixed;
+      inset: 0;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      background: rgba(10, 20, 33, 0.65);
+      z-index: 91;
+    }
     .battle-card {
       width: min(420px, 90vw);
       background: rgba(26, 38, 56, 0.98);
