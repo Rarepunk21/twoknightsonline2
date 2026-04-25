@@ -122,6 +122,10 @@ game.addEventListener("click", e => {
   });
 
   if (defenderIndex !== -1) {
+    if (typeof isNonAggressionPactActive === "function" && isNonAggressionPactActive()) {
+      showPrivatePickupToastForPlayer(currentPlayerIndex, "Пакт о ненападении запрещает атаковать другого игрока.");
+      return;
+    }
     if (currentPlayer.pocket.army <= 0) {
       const attackerLabel = typeof currentPlayer.id === "number"
         ? `Игрок ${currentPlayer.id + 1}`

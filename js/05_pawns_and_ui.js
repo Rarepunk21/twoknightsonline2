@@ -127,7 +127,28 @@ const BALLISTA_DAMAGE_MAX = 17;
 const BRIDGE_COST = 300;
 const CASTLE_MINE_LEVEL_2_COST = 300;
 const CASTLE_MINE_LEVEL_2_INCOME = 30;
+const WORLD_EVENT_MIN_TURN = 15;
+const WORLD_EVENT_MAX_TURN = 300;
+const WORLD_EVENT_MIN_DURATION = 30;
+const WORLD_EVENT_MAX_DURATION = 50;
+const WORLD_EVENT_TRIGGER_CHANCE = 0.5;
+const WORLD_EVENT_GOLD_TAX_MULTIPLIER = 1.3;
+const WORLD_EVENTS = {
+  nonAggressionPact: {
+    key: "nonAggressionPact",
+    title: "Королевский указ",
+    getMessage: duration => `Король объявил Пакт о ненападении. Вы не можете атаковать другого игрока ${duration} ходов.`
+  },
+  goldTax: {
+    key: "goldTax",
+    title: "Королевский указ",
+    getMessage: duration => `Король объявил о дополнительном налоге! Все покупки дороже на 30% в течении ${duration} ходов.`
+  }
+};
 let mineLevel2OwnerPlayerIndex = null;
+let scheduledWorldEvents = [];
+let activeWorldEvents = {};
+let worldEventModalQueue = [];
 
 function canPlayerBuildMineLevel2(playerIndex) {
   return mineLevel2OwnerPlayerIndex === null || mineLevel2OwnerPlayerIndex === playerIndex;
@@ -186,6 +207,121 @@ function initWormholeSpawns() {
   wormholeSpawnTurns = Array.from(picked).sort((a, b) => a - b);
   wormholeSpawnIndex = 0;
   upperWormhole = null;
+}
+
+function cloneWorldEventSchedule() {
+  return scheduledWorldEvents.map(event => ({ ...event }));
+}
+
+function cloneActiveWorldEvents() {
+  return Object.fromEntries(
+    Object.entries(activeWorldEvents).map(([key, value]) => [key, { ...value }])
+  );
+}
+
+function initWorldEventSchedule() {
+  scheduledWorldEvents = [];
+  activeWorldEvents = {};
+  Object.values(WORLD_EVENTS).forEach(def => {
+    if (Math.random() >= WORLD_EVENT_TRIGGER_CHANCE) return;
+    scheduledWorldEvents.push({
+      key: def.key,
+      startTurn: randomIntRange(WORLD_EVENT_MIN_TURN, WORLD_EVENT_MAX_TURN),
+      duration: randomIntRange(WORLD_EVENT_MIN_DURATION, WORLD_EVENT_MAX_DURATION)
+    });
+  });
+  scheduledWorldEvents.sort((a, b) => a.startTurn - b.startTurn);
+}
+
+function isWorldEventActive(eventKey) {
+  return (activeWorldEvents[eventKey]?.remainingTurns || 0) > 0;
+}
+
+function isNonAggressionPactActive() {
+  return isWorldEventActive(WORLD_EVENTS.nonAggressionPact.key);
+}
+
+function getWorldEventMessage(eventKey, duration) {
+  const def = WORLD_EVENTS[eventKey];
+  return def?.getMessage ? def.getMessage(duration) : "";
+}
+
+function enqueueWorldEventModal(payload) {
+  if (!payload || !worldEventModal || !worldEventText) return;
+  worldEventModalQueue.push(payload);
+  if (window.getComputedStyle(worldEventModal).display !== "none") return;
+  const next = worldEventModalQueue.shift();
+  if (!next) return;
+  worldEventTitle.textContent = next.title || "СОБЫТИЕ";
+  worldEventText.textContent = next.text || "";
+  worldEventModal.style.display = "flex";
+  refreshTurnControls();
+}
+
+function closeWorldEventModal() {
+  if (!worldEventModal) return;
+  worldEventModal.style.display = "none";
+  if (worldEventModalQueue.length > 0) {
+    const next = worldEventModalQueue.shift();
+    if (next) {
+      worldEventTitle.textContent = next.title || "СОБЫТИЕ";
+      worldEventText.textContent = next.text || "";
+      worldEventModal.style.display = "flex";
+    }
+  }
+  refreshTurnControls();
+  scheduleAutoRoll();
+}
+
+function announceWorldEvent(eventKey, duration) {
+  const def = WORLD_EVENTS[eventKey];
+  if (!def) return;
+  const payload = {
+    title: def.title,
+    text: getWorldEventMessage(eventKey, duration)
+  };
+  const inMultiplayer =
+    typeof socket !== "undefined" &&
+    socket &&
+    typeof onlineMatchStarted !== "undefined" &&
+    onlineMatchStarted;
+  if (!inMultiplayer) {
+    enqueueWorldEventModal(payload);
+    return;
+  }
+  players.forEach((_, playerIndex) => {
+    if (typeof shouldDelegatePrivateUiToPlayer === "function" && shouldDelegatePrivateUiToPlayer(playerIndex)) {
+      emitPrivateUiToPlayer(playerIndex, "showWorldEventModal", payload);
+      return;
+    }
+    enqueueWorldEventModal(payload);
+  });
+}
+
+function tickWorldEvents() {
+  Object.keys(activeWorldEvents).forEach(eventKey => {
+    const state = activeWorldEvents[eventKey];
+    if (!state) return;
+    state.remainingTurns = Math.max(0, (state.remainingTurns || 0) - 1);
+    if (state.remainingTurns <= 0) {
+      delete activeWorldEvents[eventKey];
+    }
+  });
+}
+
+function activateScheduledWorldEvents() {
+  if (!scheduledWorldEvents.length) return;
+  const activating = scheduledWorldEvents.filter(event => event.startTurn === turnCounter);
+  if (!activating.length) return;
+  scheduledWorldEvents = scheduledWorldEvents.filter(event => event.startTurn !== turnCounter);
+  activating.forEach(event => {
+    activeWorldEvents[event.key] = {
+      startTurn: turnCounter,
+      duration: event.duration,
+      remainingTurns: event.duration
+    };
+    announceWorldEvent(event.key, event.duration);
+  });
 }
 
 function getViewerWorldPlayerIndex() {
@@ -1319,6 +1455,16 @@ if (worldDangerModal) {
     }
   });
 }
+if (worldEventClose) {
+  worldEventClose.addEventListener("click", closeWorldEventModal);
+}
+if (worldEventModal) {
+  worldEventModal.addEventListener("click", event => {
+    if (event.target === worldEventModal) {
+      closeWorldEventModal();
+    }
+  });
+}
 
 const mageModal = document.getElementById("mageModal");
 const mageCancelBtn = document.getElementById("mageCancelBtn");
@@ -2200,9 +2346,14 @@ function getTotalGold(player) {
 }
 
 function getDiscountedGoldCost(player, baseCost) {
-  if (!player || !player.ringCount) return baseCost;
-  const discounted = Math.round(baseCost * 0.85);
-  return Math.max(0, discounted);
+  let cost = Number(baseCost) || 0;
+  if (player && player.ringCount) {
+    cost = Math.round(cost * 0.85);
+  }
+  if (isWorldEventActive(WORLD_EVENTS.goldTax.key)) {
+    cost = Math.round(cost * WORLD_EVENT_GOLD_TAX_MULTIPLIER);
+  }
+  return Math.max(0, cost);
 }
 
 function setTradePrice(btn, html) {
@@ -4891,6 +5042,7 @@ const TURN_BLOCKING_MODALS = [
   () => guardModal,
   () => robberModal,
   () => battleModal,
+  () => worldEventModal,
   () => cityModal,
   () => mageModal,
   () => stoneModal,
@@ -4955,6 +5107,8 @@ function completeTurnAdvance() {
   tickAllTimedBuffs();
   collectCastleIncomes(currentPlayerIndex);
   turnCounter += 1;
+  tickWorldEvents();
+  activateScheduledWorldEvents();
   handleMageCellTimers();
   if (turnCounter === 150 && !worldDangerShown) {
     showWorldDangerModal();
@@ -5565,6 +5719,7 @@ function tryAutoRoll() {
   if (typeof socket !== "undefined" && socket && !isHost) return;
   if (gameEnded) return;
   if (movesRemaining > 0) return;
+  if (hasBlockingTurnModalOpen() || hasDeferredPrivateTurnBlock()) return;
   if (processRobberAmbushChance()) return;
   doRoll();
 }
@@ -5670,6 +5825,10 @@ function resetGameState() {
   lastBattleResult = null;
   lastBattleId = 0;
   testModeEnabled = false;
+  scheduledWorldEvents = [];
+  activeWorldEvents = {};
+  worldEventModalQueue = [];
+  closeWorldEventModal();
   clearReachable();
   if (autoRollTimer) {
     clearTimeout(autoRollTimer);
@@ -5836,6 +5995,7 @@ function resetGameState() {
   if (typeof initCloverSpawns === "function") initCloverSpawns();
   if (typeof initRainbowSpawns === "function") initRainbowSpawns();
   if (typeof initPortalState === "function") initPortalState();
+  initWorldEventSchedule();
   initWormholeSpawns();
 
   if (typeof mageSlot !== "undefined") {
@@ -5920,6 +6080,7 @@ function relayout() {
 }
 
 applyCellSize(BASE_CELL);
+initWorldEventSchedule();
 initWormholeSpawns();
 relayout();
 refreshVisibleWorld();

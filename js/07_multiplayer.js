@@ -353,6 +353,8 @@ function buildState() {
     trapStunFields: shallowClone(trapStunFields),
     trapStunIdCounter,
     bridgeOpenedKeys: Array.from(bridgeOpenedKeys),
+    scheduledWorldEvents: typeof cloneWorldEventSchedule === "function" ? cloneWorldEventSchedule() : [],
+    activeWorldEvents: typeof cloneActiveWorldEvents === "function" ? cloneActiveWorldEvents() : {},
     gameWinnerIndex,
     upperWormhole: shallowClone(upperWormhole),
     wormholeSpawnTurns: shallowClone(wormholeSpawnTurns),
@@ -643,6 +645,14 @@ function applyState(state) {
   upperWormhole = state.upperWormhole ?? upperWormhole;
   wormholeSpawnTurns = Array.isArray(state.wormholeSpawnTurns) ? state.wormholeSpawnTurns.slice() : wormholeSpawnTurns;
   wormholeSpawnIndex = state.wormholeSpawnIndex ?? wormholeSpawnIndex;
+  if (Array.isArray(state.scheduledWorldEvents)) {
+    scheduledWorldEvents = state.scheduledWorldEvents.map(event => ({ ...event }));
+  }
+  if (state.activeWorldEvents && typeof state.activeWorldEvents === "object") {
+    activeWorldEvents = Object.fromEntries(
+      Object.entries(state.activeWorldEvents).map(([key, value]) => [key, { ...value }])
+    );
+  }
 
   state.players?.forEach((data, idx) => {
     if (!players[idx]) return;
@@ -1378,6 +1388,13 @@ if (socket) {
       showPickupToast(String(payload.text || ""), { skipBroadcast: true });
       return;
     }
+    if (type === "showWorldEventModal" && typeof enqueueWorldEventModal === "function") {
+      enqueueWorldEventModal({
+        title: String(payload.title || "СОБЫТИЕ"),
+        text: String(payload.text || "")
+      });
+      return;
+    }
     if (type === "activateBallistaMode") {
       if (Number.isInteger(payload.playerIndex)) {
         ballistaModePlayerIndex = payload.playerIndex;
@@ -1505,7 +1522,7 @@ if (socket) {
     if (!onlineMatchStarted) return;
     if (isHost || applyingRemoteState || performingRemoteAction) return;
     if (onlineGamePaused) return;
-    if (e.target?.closest?.("#castleModal, #hireModal, #trollCaveModal, #battleModal, #barracksModal, #lavkaModal, #workshopModal, #cityModal, #masterModal, #mageModal, #stoneModal, #stoneResultModal, #repairModal, #guardModal")) {
+    if (e.target?.closest?.("#castleModal, #hireModal, #trollCaveModal, #battleModal, #worldEventModal, #barracksModal, #lavkaModal, #workshopModal, #cityModal, #masterModal, #mageModal, #stoneModal, #stoneResultModal, #repairModal, #guardModal")) {
       return;
     }
     const action = getActionFromEvent(e);
@@ -1527,7 +1544,7 @@ if (socket) {
     if (!onlineMatchStarted) return;
     if (!isHost || applyingRemoteState || performingRemoteAction) return;
     if (onlineGamePaused) return;
-    if (e.target?.closest?.("#castleModal, #hireModal, #trollCaveModal, #battleModal, #barracksModal, #lavkaModal, #workshopModal, #cityModal, #masterModal, #mageModal, #stoneModal, #stoneResultModal, #repairModal, #guardModal")) {
+    if (e.target?.closest?.("#castleModal, #hireModal, #trollCaveModal, #battleModal, #worldEventModal, #barracksModal, #lavkaModal, #workshopModal, #cityModal, #masterModal, #mageModal, #stoneModal, #stoneResultModal, #repairModal, #guardModal")) {
       return;
     }
     const action = getActionFromEvent(e);
