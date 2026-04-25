@@ -129,19 +129,21 @@ const CASTLE_MINE_LEVEL_2_COST = 300;
 const CASTLE_MINE_LEVEL_2_INCOME = 30;
 const WORLD_EVENT_MIN_TURN = 15;
 const WORLD_EVENT_MAX_TURN = 300;
-const WORLD_EVENT_MIN_DURATION = 30;
-const WORLD_EVENT_MAX_DURATION = 50;
 const WORLD_EVENT_TRIGGER_CHANCE = 0.5;
 const WORLD_EVENT_GOLD_TAX_MULTIPLIER = 1.3;
 const WORLD_EVENTS = {
   nonAggressionPact: {
     key: "nonAggressionPact",
     title: "Королевский указ",
+    minDuration: 20,
+    maxDuration: 30,
     getMessage: duration => `Король объявил Пакт о ненападении. Вы не можете атаковать другого игрока ${duration} ходов.`
   },
   goldTax: {
     key: "goldTax",
     title: "Королевский указ",
+    minDuration: 20,
+    maxDuration: 40,
     getMessage: duration => `Король объявил о дополнительном налоге! Все покупки дороже на 30% в течении ${duration} ходов.`
   }
 };
@@ -227,7 +229,7 @@ function initWorldEventSchedule() {
     scheduledWorldEvents.push({
       key: def.key,
       startTurn: randomIntRange(WORLD_EVENT_MIN_TURN, WORLD_EVENT_MAX_TURN),
-      duration: randomIntRange(WORLD_EVENT_MIN_DURATION, WORLD_EVENT_MAX_DURATION)
+      duration: randomIntRange(def.minDuration, def.maxDuration)
     });
   });
   scheduledWorldEvents.sort((a, b) => a.startTurn - b.startTurn);
@@ -244,6 +246,34 @@ function isNonAggressionPactActive() {
 function getWorldEventMessage(eventKey, duration) {
   const def = WORLD_EVENTS[eventKey];
   return def?.getMessage ? def.getMessage(duration) : "";
+}
+
+function getWorldEventStatusLabel(eventKey) {
+  if (eventKey === WORLD_EVENTS.nonAggressionPact.key) return "Пакт о ненападении";
+  if (eventKey === WORLD_EVENTS.goldTax.key) return "Налог +30%";
+  return "Событие";
+}
+
+function renderWorldEventStatus(playerIndex) {
+  if (!Array.isArray(worldEventStatusRoots)) return;
+  const root = worldEventStatusRoots.find(elem => Number(elem?.dataset?.worldEventStatus) === playerIndex);
+  if (!root) return;
+  const list = root.querySelector(".world-event-status-list");
+  if (!list) return;
+  const activeEntries = Object.entries(activeWorldEvents)
+    .filter(([, state]) => (state?.remainingTurns || 0) > 0)
+    .sort((a, b) => (a[1].remainingTurns || 0) - (b[1].remainingTurns || 0));
+  if (!activeEntries.length) {
+    list.textContent = "Нет активных событий";
+    return;
+  }
+  list.innerHTML = activeEntries
+    .map(([eventKey, state]) => {
+      const label = getWorldEventStatusLabel(eventKey);
+      const turns = state.remainingTurns || 0;
+      return `<div class="world-event-status-item"><strong>${label}</strong>: ещё ${turns} ходов</div>`;
+    })
+    .join("");
 }
 
 function enqueueWorldEventModal(payload) {
@@ -1276,6 +1306,7 @@ function updatePlayerResources(playerIndex) {
   const storedArmy = stats ? (stats.storageArmy || 0) : 0;
   setPanelStat(panel, '[data-stat="army"]', storedArmy, castleVisible);
   updateInventory(playerIndex);
+  renderWorldEventStatus(playerIndex);
 }
 
 function depositPocketCurrencyToPlayer(playerIndex) {

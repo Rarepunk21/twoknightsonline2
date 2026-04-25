@@ -112,6 +112,7 @@ castleFeatureButtons.forEach(btn => {
   const feature = btn.dataset.castleFeature;
   castleFeatureStatusElems[feature] = document.querySelector(`[data-feature-status="${feature}"]`);
 });
+const worldEventStatusRoots = Array.from(document.querySelectorAll("[data-world-event-status]"));
 const blockedCellNumbers = [739, 709, 679, 650, 620, 591, 562, 505, 504, 477, 476, 450, 449, 448];
 const blockedCellKeys = new Set(blockedCellNumbers.map(num => {
   const index = num - 1;
