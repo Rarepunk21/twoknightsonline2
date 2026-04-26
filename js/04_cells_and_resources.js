@@ -1582,7 +1582,7 @@ function spawnRainbowStone() {
   return true;
 }
 
-function getVoidShardEligibleKeys() {
+function getVoidShardSpawnEligibleKeys() {
   const playerPositions = new Set(players.map(p => `${p.x},${p.y}`));
   return Object.keys(grid).filter(key => {
     const [x, y] = key.split(",").map(Number);
@@ -1607,7 +1607,7 @@ function getVoidShardEligibleKeys() {
 }
 
 function spawnVoidShard() {
-  const eligibleKeys = getVoidShardEligibleKeys();
+  const eligibleKeys = getVoidShardSpawnEligibleKeys();
   if (eligibleKeys.length === 0) return false;
   const key = eligibleKeys[Math.floor(Math.random() * eligibleKeys.length)];
   const [xStr, yStr] = key.split(",");
@@ -1688,11 +1688,7 @@ function handleRainbowSpawns() {
 
 function handleVoidShardSpawns() {
   if (voidShardSpawnTurn === null) {
-    if (Math.random() < 0.5) {
-      voidShardSpawnTurn = randomIntRange(VOID_SHARD_SPAWN_MIN_TURN, VOID_SHARD_SPAWN_MAX_TURN);
-    } else {
-      voidShardSpawnTurn = -1;
-    }
+    voidShardSpawnTurn = randomIntRange(VOID_SHARD_SPAWN_MIN_TURN, VOID_SHARD_SPAWN_MAX_TURN);
   }
   if (voidShardSpawnTurn < 0) return;
   if (Object.keys(voidShardByPos).length > 0) return;
@@ -1733,6 +1729,12 @@ function handlePortalSpawns() {
 }
 
 function handleMasterCell() {
+  if (typeof isMasterJourneyActive === "function" && isMasterJourneyActive()) {
+    if (masterActive) {
+      clearMasterCell();
+    }
+    return;
+  }
   if (masterActive) {
     masterTurnsRemaining -= 1;
     if (masterTurnsRemaining <= 0) {
@@ -1848,6 +1850,12 @@ function removeMageCell(slot) {
 
 function handleMageCellTimers() {
   const slot = mageSlot;
+  if (typeof isMageJourneyActive === "function" && isMageJourneyActive()) {
+    if (slot.active) {
+      removeMageCell(slot);
+    }
+    return;
+  }
   if (slot.active) {
     slot.turnsRemaining -= 1;
     updateMageTimer(slot);

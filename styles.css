@@ -459,6 +459,51 @@
       box-shadow: inset 0 0 0 2px rgba(239, 68, 68, 0.35);
       text-decoration: line-through;
     }
+    .cell.resource-disabled.forest::before,
+    .cell.resource-disabled.resource::before,
+    .cell.resource-disabled.forest::after,
+    .cell.resource-disabled.resource::after {
+      content: "";
+      position: absolute;
+      left: 50%;
+      bottom: 28%;
+      width: 78%;
+      height: 78%;
+      border-radius: 50%;
+      pointer-events: none;
+      z-index: 5;
+      background:
+        radial-gradient(circle at 50% 55%, rgba(18, 18, 18, 0.34) 0%, rgba(18, 18, 18, 0.22) 34%, rgba(18, 18, 18, 0.08) 56%, rgba(18, 18, 18, 0) 76%);
+      filter: blur(7px);
+      opacity: 0;
+      transform: translate(-50%, 0) scale(0.72);
+      animation: brokenCellSmoke 3.8s ease-out infinite;
+    }
+    .cell.resource-disabled.forest::after,
+    .cell.resource-disabled.resource::after {
+      width: 60%;
+      height: 60%;
+      margin-left: 12%;
+      animation-delay: 1.7s;
+      animation-duration: 4.5s;
+      opacity: 0;
+    }
+    @keyframes brokenCellSmoke {
+      0% {
+        opacity: 0;
+        transform: translate(-50%, 7px) scale(0.66);
+      }
+      18% {
+        opacity: 0.38;
+      }
+      60% {
+        opacity: 0.2;
+      }
+      100% {
+        opacity: 0;
+        transform: translate(-50%, -20px) scale(1.18);
+      }
+    }
 
     .pawn {
       position: absolute;

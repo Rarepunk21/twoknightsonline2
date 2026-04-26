@@ -141,6 +141,7 @@ const WORLD_EVENT_TRIGGER_CHANCE = 0.5;
 const WORLD_EVENT_GOLD_TAX_MULTIPLIER = 1.3;
 const WORLD_EVENT_TROLL_HUNT_GOLD_REWARD = 1000;
 const HERO_BATTLE_INFLUENCE_LOSS = 50;
+const KING_CONCERN_ROLL_PENALTY = 3;
 const WORLD_EVENTS = {
   nonAggressionPact: {
     key: "nonAggressionPact",
@@ -176,6 +177,27 @@ const WORLD_EVENTS = {
     minDuration: 10,
     maxDuration: 20,
     getMessage: duration => `Король объявил охоту на троллей! За убийство троллей рыцари получат 1000 золота в течении ${duration} ходов.`
+  },
+  mageJourney: {
+    key: "mageJourney",
+    title: "Королевский указ",
+    minDuration: 20,
+    maxDuration: 35,
+    getMessage: duration => `Маг отправился в дальнее странствие, его не будет ${duration} ходов.`
+  },
+  masterJourney: {
+    key: "masterJourney",
+    title: "Королевский указ",
+    minDuration: 20,
+    maxDuration: 35,
+    getMessage: duration => `Великий мастер отправился в дальнее странствие, его не будет ${duration} ходов.`
+  },
+  kingConcern: {
+    key: "kingConcern",
+    title: "Королевский указ",
+    minDuration: 10,
+    maxDuration: 15,
+    getMessage: duration => `Король беспокоится о своей безопасности. Пусть тот, у кого больше армия, передвигается помедленнее на протяжении ${duration} ходов.`
   },
   mercenaryRiot: {
     key: "mercenaryRiot",
@@ -611,6 +633,28 @@ function isTrollHuntActive() {
   return isWorldEventActive(WORLD_EVENTS.trollHunt.key);
 }
 
+function isMageJourneyActive() {
+  return isWorldEventActive(WORLD_EVENTS.mageJourney.key);
+}
+
+function isMasterJourneyActive() {
+  return isWorldEventActive(WORLD_EVENTS.masterJourney.key);
+}
+
+function getKingConcernState() {
+  return activeWorldEvents[WORLD_EVENTS.kingConcern.key] || null;
+}
+
+function getKingConcernTargetPlayerIndex() {
+  const state = getKingConcernState();
+  return Number.isInteger(state?.targetPlayerIndex) ? state.targetPlayerIndex : null;
+}
+
+function getKingConcernPenalty(playerIndex) {
+  if (!isWorldEventActive(WORLD_EVENTS.kingConcern.key)) return 0;
+  return getKingConcernTargetPlayerIndex() === playerIndex ? KING_CONCERN_ROLL_PENALTY : 0;
+}
+
 function getWorldEventMessage(eventKey, duration) {
   const def = WORLD_EVENTS[eventKey];
   return def?.getMessage ? def.getMessage(duration) : "";
@@ -622,6 +666,9 @@ function getWorldEventStatusLabel(eventKey) {
   if (eventKey === WORLD_EVENTS.merchantsStrike.key) return "Забастовка торговцев";
   if (eventKey === WORLD_EVENTS.barbarianFury.key) return "Ярость варваров";
   if (eventKey === WORLD_EVENTS.trollHunt.key) return "Охота на троллей";
+  if (eventKey === WORLD_EVENTS.mageJourney.key) return "Странствие мага";
+  if (eventKey === WORLD_EVENTS.masterJourney.key) return "Странствие Великого Мастера";
+  if (eventKey === WORLD_EVENTS.kingConcern.key) return "Опасение короля";
   if (eventKey === WORLD_EVENTS.quarantine.key) return "Карантин";
   return "Событие";
 }
@@ -1161,6 +1208,50 @@ function applyMercenaryRiotWorldEvent() {
   announceWorldEvent(def.key, 0);
 }
 
+function applyKingConcernWorldEvent(event) {
+  const def = WORLD_EVENTS.kingConcern;
+  if (!def) return;
+  const payloadByPlayerIndex = {};
+  const armies = players
+    .map((player, playerIndex) => ({ player, playerIndex, pocketArmy: Math.max(0, player?.pocket?.army || 0) }))
+    .filter(({ player }) => Boolean(player));
+  if (!armies.length) return;
+
+  const maxArmy = Math.max(...armies.map(entry => entry.pocketArmy));
+  const leaders = armies.filter(entry => entry.pocketArmy === maxArmy);
+  const targetPlayerIndex = leaders.length === 1 ? leaders[0].playerIndex : null;
+
+  activeWorldEvents[event.key] = {
+    startTurn: turnCounter,
+    duration: event.duration,
+    remainingTurns: event.duration,
+    turnsUntilActive: Math.max(0, event.turnsUntilActive || 0),
+    targetPlayerIndex
+  };
+
+  armies.forEach(({ playerIndex }) => {
+    if (targetPlayerIndex === null) {
+      payloadByPlayerIndex[playerIndex] = {
+        title: def.title,
+        text: `Король беспокоится о своей безопасности. Но сейчас армия в кармане у игроков одинакова, поэтому никто не замедлен.`
+      };
+      return;
+    }
+    payloadByPlayerIndex[playerIndex] = playerIndex === targetPlayerIndex
+      ? {
+          title: def.title,
+          text: `Король беспокоится о своей безопасности. У вас больше войск в кармане, поэтому следующие ${event.duration} ходов ваш бросок уменьшается на ${KING_CONCERN_ROLL_PENALTY}.`
+        }
+      : {
+          title: def.title,
+          text: `Король беспокоится о своей безопасности. У соперника больше войск в кармане, поэтому следующие ${event.duration} ходов его бросок уменьшается на ${KING_CONCERN_ROLL_PENALTY}.`
+        };
+  });
+
+  players.forEach((_, playerIndex) => updatePlayerResources(playerIndex));
+  announcePlayerSpecificWorldEvent(payloadByPlayerIndex);
+}
+
 function tickWorldEvents() {
   let shouldSyncBarbarianStrengths = false;
   Object.keys(activeWorldEvents).forEach(eventKey => {
@@ -1209,12 +1300,26 @@ function activateScheduledWorldEvents() {
       startKingGenerosityWorldEvent();
       return;
     }
+    if (event.key === WORLD_EVENTS.kingConcern.key) {
+      applyKingConcernWorldEvent(event);
+      return;
+    }
     activeWorldEvents[event.key] = {
       startTurn: turnCounter,
       duration: event.duration,
       remainingTurns: event.duration,
       turnsUntilActive: Math.max(0, event.turnsUntilActive || 0)
     };
+    if (event.key === WORLD_EVENTS.mageJourney.key) {
+      if (typeof mageSlot !== "undefined" && mageSlot?.active && typeof removeMageCell === "function") {
+        removeMageCell(mageSlot);
+      }
+    }
+    if (event.key === WORLD_EVENTS.masterJourney.key) {
+      if (typeof masterActive !== "undefined" && masterActive && typeof clearMasterCell === "function") {
+        clearMasterCell();
+      }
+    }
     if (event.key === WORLD_EVENTS.barbarianFury.key && typeof syncBarbarianStrengths === "function") {
       syncBarbarianStrengths();
     }
@@ -1385,6 +1490,7 @@ function renderUpperSpecialCell(entry) {
   if (entry.extraClass) cell.classList.add(entry.extraClass);
   cell.textContent = entry.label || "";
   clearCellIcon(cell);
+  cell.classList.remove("resource-disabled");
   if (entry.disabled) {
     cell.classList.add("resource-disabled");
   }
@@ -2334,6 +2440,15 @@ function updatePlayerResources(playerIndex) {
     if ((player.slowTurnsRemaining || 0) > 0) parts.push(`Замедление ${player.slowTurnsRemaining}`);
     if ((player.noDoubleTurnsRemaining || 0) > 0) parts.push(`Без дубля ${player.noDoubleTurnsRemaining}`);
     if ((player.stunnedTurnsRemaining || 0) > 0) parts.push(`Оглушение ${player.stunnedTurnsRemaining}`);
+    const kingConcernState = getKingConcernState();
+    if (
+      isWorldEventActive(WORLD_EVENTS.kingConcern.key) &&
+      kingConcernState &&
+      kingConcernState.targetPlayerIndex === playerIndex &&
+      (kingConcernState.remainingTurns || 0) > 0
+    ) {
+      parts.push(`Опасение короля ${kingConcernState.remainingTurns}`);
+    }
     negativeSpan.textContent = parts.length ? parts.join(", ") : "нет";
   }
   const positiveSpan = panel.querySelector('[data-stat="positive-buffs"]');
@@ -7014,7 +7129,9 @@ function doRoll() {
   if (stoneBonusActive && currentPlayer) {
     currentPlayer.stoneBonusRollsRemaining = Math.max(0, currentPlayer.stoneBonusRollsRemaining - 1);
   }
-  const penalty = currentPlayer && currentPlayer.slowTurnsRemaining > 0 ? MAGE_SLOW_PENALTY : 0;
+  const slowPenalty = currentPlayer && currentPlayer.slowTurnsRemaining > 0 ? MAGE_SLOW_PENALTY : 0;
+  const kingConcernPenalty = getKingConcernPenalty(currentPlayerIndex);
+  const penalty = slowPenalty + kingConcernPenalty;
   let effectiveMoves = roll;
   if (penalty > 0 && currentPlayer) {
     effectiveMoves = Math.max(0, roll - penalty);
@@ -7038,7 +7155,13 @@ function doRoll() {
   }
   if (effectiveMoves <= 0) {
     movesRemaining = 0;
-    showPickupToast("Маг замедлил вас — ход пропущен.");
+    if (slowPenalty > 0 && kingConcernPenalty > 0) {
+      showPickupToast("Маг и опасение короля замедлили вас — ход пропущен.");
+    } else if (kingConcernPenalty > 0) {
+      showPickupToast("Опасение короля замедлило вас — ход пропущен.");
+    } else {
+      showPickupToast("Маг замедлил вас — ход пропущен.");
+    }
     endTurn();
     return;
   }
