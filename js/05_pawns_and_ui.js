@@ -725,8 +725,7 @@ function closeWorldEventModal() {
       worldEventModal.style.display = "flex";
     }
   }
-  refreshTurnControls();
-  scheduleAutoRoll();
+  resumeTurnFlowAfterModalChange();
 }
 
 function syncKingAuctionModalState(viewerPlayerIndex = kingAuctionViewerPlayerIndex) {
@@ -786,7 +785,7 @@ function closeKingAuctionModal() {
   if (!kingAuctionModal) return;
   kingAuctionModal.style.display = "none";
   kingAuctionViewerPlayerIndex = null;
-  refreshTurnControls();
+  resumeTurnFlowAfterModalChange();
 }
 
 function syncKingAuctionModalVisibility() {
@@ -870,7 +869,7 @@ function closeKingGenerosityModal() {
   if (!kingGenerosityModal) return;
   kingGenerosityModal.style.display = "none";
   kingGenerosityViewerPlayerIndex = null;
-  refreshTurnControls();
+  resumeTurnFlowAfterModalChange();
 }
 
 function syncKingGenerosityModalVisibility() {
@@ -2963,6 +2962,7 @@ function closeMageModal() {
   pendingMageSlot = null;
   pendingMagePlayerIndex = null;
   mageModal.style.display = "none";
+  resumeTurnFlowAfterModalChange();
 }
 
 function handleMageAction(action) {
@@ -3085,6 +3085,7 @@ function closeStoneModal() {
   pendingStoneKey = null;
   pendingStonePlayerIndex = null;
   stoneModal.style.display = "none";
+  resumeTurnFlowAfterModalChange();
 }
 
 function openStoneResultModal(text, playerIndex = currentPlayerIndex) {
@@ -3100,6 +3101,7 @@ function openStoneResultModal(text, playerIndex = currentPlayerIndex) {
 function closeStoneResultModal() {
   if (!stoneResultModal) return;
   stoneResultModal.style.display = "none";
+  resumeTurnFlowAfterModalChange();
 }
 
 function openTrollCaveModal(text, playerIndex = currentPlayerIndex) {
@@ -3123,6 +3125,7 @@ function openTrollCaveModal(text, playerIndex = currentPlayerIndex) {
 function closeTrollCaveModal() {
   if (!trollCaveModal) return;
   trollCaveModal.style.display = "none";
+  resumeTurnFlowAfterModalChange();
 }
 
 function applyStoneEffect(playerIndex) {
@@ -3284,6 +3287,7 @@ function closeMasterModal() {
   if (!masterModal) return;
   masterModal.style.display = "none";
   pendingMasterPlayerIndex = null;
+  resumeTurnFlowAfterModalChange();
 }
 
 if (masterBuyHilt) {
@@ -3795,6 +3799,7 @@ function openBarracks(playerIndex) {
 function closeBarracks() {
   barracksModal.style.display = "none";
   barracksPlayerIndex = null;
+  resumeTurnFlowAfterModalChange();
 }
 
 barracksClose.addEventListener("click", closeBarracks);
@@ -3882,6 +3887,7 @@ function openLavka(playerIndex) {
 function closeLavka() {
   lavkaModal.style.display = "none";
   lavkaPlayerIndex = null;
+  resumeTurnFlowAfterModalChange();
 }
 
 lavkaClose.addEventListener("click", closeLavka);
@@ -3982,6 +3988,7 @@ function openWorkshop(playerIndex) {
 function closeWorkshop() {
   workshopModal.style.display = "none";
   workshopPlayerIndex = null;
+  resumeTurnFlowAfterModalChange();
 }
 
 workshopClose.addEventListener("click", closeWorkshop);
@@ -4359,6 +4366,7 @@ function buyHireOption(type) {
 function closeHire() {
   hireModal.style.display = "none";
   hirePlayerIndex = null;
+  resumeTurnFlowAfterModalChange();
 }
 
 hireClose.addEventListener("click", closeHire);
@@ -4421,6 +4429,7 @@ function openRepairModal(entry, playerIndex) {
 function closeRepairModal() {
   if (repairModal) repairModal.style.display = "none";
   repairPending = null;
+  resumeTurnFlowAfterModalChange();
 }
 
 if (repairCancel) {
@@ -4909,6 +4918,7 @@ function openCity(playerIndex) {
 function closeCity() {
   cityModal.style.display = "none";
   cityPlayerIndex = null;
+  resumeTurnFlowAfterModalChange();
 }
 
 let cityPlayerIndex = null;
@@ -5855,6 +5865,7 @@ function showBattleModal(result, force = false) {
 
   function hideBattleModal() {
     if (battleModal) battleModal.style.display = "none";
+    resumeTurnFlowAfterModalChange();
   }
 
   battleClose.addEventListener("click", hideBattleModal);
@@ -6450,6 +6461,27 @@ function updateEndTurnButton() {
 
 function refreshTurnControls() {
   updateEndTurnButton();
+}
+
+function resumeTurnFlowAfterModalChange() {
+  refreshTurnControls();
+  if (gameEnded) return;
+  if (typeof socket !== "undefined" && socket && !isHost) return;
+  if (
+    hasBlockingTurnModalOpen() ||
+    hasDeferredPrivateTurnBlock() ||
+    isKingAuctionBlockingGameplay() ||
+    isKingGenerosityBlockingGameplay()
+  ) {
+    return;
+  }
+  if (pendingTurnAdvance) {
+    pendingTurnManualOnly = false;
+    if (tryFinishPendingTurn(false)) {
+      return;
+    }
+  }
+  scheduleAutoRoll();
 }
 
 function completeTurnAdvance() {
@@ -7497,7 +7529,7 @@ const turnModalObserverTargets = TURN_BLOCKING_MODALS
 
 if (typeof MutationObserver !== "undefined" && turnModalObserverTargets.length) {
   const turnModalObserver = new MutationObserver(() => {
-    refreshTurnControls();
+    resumeTurnFlowAfterModalChange();
   });
   turnModalObserverTargets.forEach(elem => {
     turnModalObserver.observe(elem, {
