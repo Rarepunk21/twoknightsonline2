@@ -1458,6 +1458,9 @@ function resetCellForVisibleRender(key) {
   cell.classList.add("inactive");
   cell.textContent = "";
   clearCellIcon(cell);
+  if (typeof clearBrokenResourceSmoke === "function") {
+    clearBrokenResourceSmoke(cell);
+  }
   const trollToken = cell.querySelector(".troll-token");
   if (trollToken) trollToken.remove();
   cell.style.background = "";
@@ -1511,6 +1514,12 @@ function renderUpperSpecialCell(entry) {
     (entry.featureKey === "lumber" || entry.featureKey === "mine" || entry.featureKey === "clay")
   ) {
     applySpecialFeatureIcon(entry.x, entry.y, entry.featureKey);
+  }
+  if (typeof syncBrokenResourceSmoke === "function") {
+    syncBrokenResourceSmoke(
+      cell,
+      Boolean(entry.disabled && ["lumber", "mine", "clay"].includes(entry.featureKey))
+    );
   }
 }
 
@@ -4598,6 +4607,16 @@ function disableTargetResource(targetKey) {
     cell.classList.add("important", "special");
     if (entry.extraClass) cell.classList.add(entry.extraClass);
     cell.textContent = entry.label;
+    if (
+      entry.featureKey &&
+      typeof applySpecialFeatureIcon === "function" &&
+      ["lumber", "mine", "clay"].includes(entry.featureKey)
+    ) {
+      applySpecialFeatureIcon(entry.x, entry.y, entry.featureKey);
+    }
+    if (typeof syncBrokenResourceSmoke === "function") {
+      syncBrokenResourceSmoke(cell, true);
+    }
   }
   if (typeof entry.ownerIndex === "number") {
     recalcPlayerResourceIncome(entry.ownerIndex);
@@ -6077,7 +6096,11 @@ function applySpecialFeatureIcon(x, y, featureKey) {
   };
   const iconDef = iconByFeature[featureKey];
   if (cell && iconDef && typeof setCellIcon === "function") {
-    cell.textContent = "";
+    if (typeof clearCellTextNodes === "function") {
+      clearCellTextNodes(cell);
+    } else {
+      cell.textContent = "";
+    }
     setCellIcon(cell, iconDef.file, iconDef.alt);
   }
 }

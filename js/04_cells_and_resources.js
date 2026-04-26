@@ -117,6 +117,28 @@ function clearCellIcon(cell) {
   cell.classList.remove("has-icon");
 }
 
+function clearCellTextNodes(cell) {
+  if (!cell) return;
+  Array.from(cell.childNodes).forEach(node => {
+    if (node.nodeType === 3) {
+      node.remove();
+    }
+  });
+}
+
+function clearBrokenResourceSmoke(cell) {
+  if (!cell) return;
+  cell.querySelectorAll(".broken-resource-smoke").forEach(node => node.remove());
+  cell.classList.remove("broken-resource-smoking");
+}
+
+function syncBrokenResourceSmoke(cell, enabled) {
+  if (!cell) return;
+  clearBrokenResourceSmoke(cell);
+  if (!enabled) return;
+  cell.classList.add("broken-resource-smoking");
+}
+
 function restoreImportantNodeCell(key, cell) {
   const node = nodeByPos[key];
   if (!node || !cell) return false;
@@ -124,6 +146,7 @@ function restoreImportantNodeCell(key, cell) {
   cell.classList.add("important", node.type);
   cell.textContent = node.label || node.id || "";
   clearCellIcon(cell);
+  clearBrokenResourceSmoke(cell);
   cell.removeAttribute("data-barbarian");
   cell.removeAttribute("title");
   const iconDef = ICONS_BY_ID[node.id];
@@ -793,6 +816,7 @@ function setCellToInactive(x, y, {skipTreasureCleanup = false} = {}) {
   cell.classList.add("inactive");
   cell.textContent = "";
   clearCellIcon(cell);
+  clearBrokenResourceSmoke(cell);
   const trollToken = cell.querySelector(".troll-token");
   if (trollToken) trollToken.remove();
   cell.style.background = "";
@@ -848,6 +872,7 @@ function setSpecialCellDisabled(key, disabled) {
   } else {
     cell.classList.remove("resource-disabled");
   }
+  syncBrokenResourceSmoke(cell, entry.disabled && ["lumber", "mine", "clay"].includes(entry.featureKey));
   return true;
 }
 
