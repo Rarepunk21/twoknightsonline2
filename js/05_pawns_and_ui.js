@@ -138,6 +138,7 @@ const WORLD_EVENT_MAX_TURN = 300;
 const WORLD_EVENT_TRIGGER_CHANCE = 0.5;
 const WORLD_EVENT_GOLD_TAX_MULTIPLIER = 1.3;
 const WORLD_EVENT_TROLL_HUNT_GOLD_REWARD = 1000;
+const HERO_BATTLE_INFLUENCE_LOSS = 50;
 const WORLD_EVENTS = {
   nonAggressionPact: {
     key: "nonAggressionPact",
@@ -199,6 +200,11 @@ const WORLD_EVENTS = {
     title: "Аукцион короля",
     instant: true
   },
+  kingGenerosity: {
+    key: "kingGenerosity",
+    title: "Щедрость короля",
+    instant: true
+  },
   quarantine: {
     key: "quarantine",
     title: "Королевский указ",
@@ -215,6 +221,190 @@ let worldEventModalQueue = [];
 let kingAuctionState = normalizeKingAuctionState();
 let kingAuctionViewerPlayerIndex = null;
 const kingAuctionDraftBids = players.map(() => "");
+let kingGenerosityState = normalizeKingGenerosityState();
+let kingGenerosityViewerPlayerIndex = null;
+
+const KING_GENEROSITY_GIFTS = [
+  {
+    key: "army-8",
+    title: "+8 войск",
+    text: "Получить +8 войск в карман.",
+    apply(player) {
+      player.pocket.army += 8;
+      return "Король подарил вам 8 войск.";
+    }
+  },
+  {
+    key: "gold-500",
+    title: "+500 золота",
+    text: "Получить +500 золота в карман.",
+    apply(player) {
+      player.pocket.gold += 500;
+      return "Король подарил вам 500 золота.";
+    }
+  },
+  {
+    key: "influence-100",
+    title: "+100 влияния",
+    text: "Получить +100 влияния.",
+    apply(player) {
+      player.resources.influence += 100;
+      return "Король подарил вам 100 влияния.";
+    }
+  },
+  {
+    key: "resources-200",
+    title: "+200 ресурсов",
+    text: "Получить +200 ресурсов в карман.",
+    apply(player) {
+      player.pocket.resources += 200;
+      return "Король подарил вам 200 ресурсов.";
+    }
+  },
+  {
+    key: "bolt-3",
+    title: "3 болта",
+    text: "Получить 3 болта для баллисты.",
+    apply(player) {
+      player.boltCount = (player.boltCount || 0) + 3;
+      return "Король подарил вам 3 болта.";
+    }
+  },
+  {
+    key: "potion-luck",
+    title: "Зелье удачи",
+    text: "Получить зелье удачи.",
+    apply(player) {
+      player.luckPotionCount = (player.luckPotionCount || 0) + 1;
+      return "Король подарил вам зелье удачи.";
+    }
+  },
+  {
+    key: "potion-invis-2",
+    title: "2 зелья невидимости",
+    text: "Получить 2 зелья невидимости.",
+    apply(player) {
+      player.invisPotionCount = (player.invisPotionCount || 0) + 2;
+      return "Король подарил вам 2 зелья невидимости.";
+    }
+  },
+  {
+    key: "bridge-2",
+    title: "2 моста",
+    text: "Получить 2 моста.",
+    apply(player) {
+      player.bridgeCount = (player.bridgeCount || 0) + 2;
+      return "Король подарил вам 2 моста.";
+    }
+  },
+  {
+    key: "rainbow",
+    title: "Радужный камень",
+    text: "Получить радужный камень.",
+    isAvailable(player) {
+      return hasFreeSpecialArtifactSlot(player);
+    },
+    apply(player) {
+      if (!tryAddSpecialArtifactToInventory(player, "rainbow")) {
+        return "У вас не нашлось места для радужного камня.";
+      }
+      return "Король подарил вам радужный камень.";
+    }
+  },
+  {
+    key: "gold-1000",
+    title: "+1000 золота",
+    text: "Получить +1000 золота в карман.",
+    apply(player) {
+      player.pocket.gold += 1000;
+      return "Король подарил вам 1000 золота.";
+    }
+  },
+  {
+    key: "army-5",
+    title: "+5 войск",
+    text: "Получить +5 войск в карман.",
+    apply(player) {
+      player.pocket.army += 5;
+      return "Король подарил вам 5 войск.";
+    }
+  },
+  {
+    key: "bridge-1",
+    title: "1 мост",
+    text: "Получить 1 мост.",
+    apply(player) {
+      player.bridgeCount = (player.bridgeCount || 0) + 1;
+      return "Король подарил вам мост.";
+    }
+  },
+  {
+    key: "bolt-2",
+    title: "2 болта",
+    text: "Получить 2 болта для баллисты.",
+    apply(player) {
+      player.boltCount = (player.boltCount || 0) + 2;
+      return "Король подарил вам 2 болта.";
+    }
+  },
+  {
+    key: "trap-stun-3",
+    title: "3 ловушки-стан",
+    text: "Получить 3 ловушки-стан.",
+    apply(player) {
+      player.trapStunCount = (player.trapStunCount || 0) + 3;
+      return "Король подарил вам 3 ловушки-стан.";
+    }
+  },
+  {
+    key: "trap-stun-1",
+    title: "1 ловушка-стан",
+    text: "Получить 1 ловушку-стан.",
+    apply(player) {
+      player.trapStunCount = (player.trapStunCount || 0) + 1;
+      return "Король подарил вам ловушку-стан.";
+    }
+  },
+  {
+    key: "resources-100",
+    title: "+100 ресурсов",
+    text: "Получить +100 ресурсов в карман.",
+    apply(player) {
+      player.pocket.resources += 100;
+      return "Король подарил вам 100 ресурсов.";
+    }
+  },
+  {
+    key: "flower",
+    title: "Таинственный цветок",
+    text: "Получить таинственный цветок.",
+    isAvailable(player) {
+      return hasFreeSpecialArtifactSlot(player);
+    },
+    apply(player) {
+      if (!tryAddSpecialArtifactToInventory(player, "flower")) {
+        return "У вас не нашлось места для таинственного цветка.";
+      }
+      return "Король подарил вам таинственный цветок.";
+    }
+  }
+];
+
+function normalizeKingGenerosityState(state = null) {
+  const offers = players.map((_, index) => {
+    const rawOffers = Array.isArray(state?.offers?.[index]) ? state.offers[index] : [];
+    return rawOffers
+      .map(entry => String(entry || "").trim())
+      .filter(key => KING_GENEROSITY_GIFTS.some(gift => gift.key === key))
+      .slice(0, 2);
+  });
+  const chosen = players.map((_, index) => Boolean(state?.chosen?.[index]));
+  return {
+    active: Boolean(state?.active),
+    offers,
+    chosen
+  };
+}
 
 function normalizeKingAuctionState(state = null) {
   const bids = players.map((_, index) => {
@@ -233,8 +423,16 @@ function cloneKingAuctionState() {
   return normalizeKingAuctionState(kingAuctionState);
 }
 
+function cloneKingGenerosityState() {
+  return normalizeKingGenerosityState(kingGenerosityState);
+}
+
 function isKingAuctionActive() {
   return Boolean(kingAuctionState?.active);
+}
+
+function isKingGenerosityActive() {
+  return Boolean(kingGenerosityState?.active);
 }
 
 function isRoyalBlessingScope(scope) {
@@ -256,8 +454,32 @@ function isKingAuctionBlockingGameplay() {
   return isKingAuctionActive();
 }
 
+function isKingGenerosityBlockingGameplay() {
+  return isKingGenerosityActive();
+}
+
 function sanitizeKingAuctionBidAmount(value) {
   return Math.max(0, Math.floor(Number(value) || 0));
+}
+
+function getKingGenerosityGiftByKey(giftKey) {
+  return KING_GENEROSITY_GIFTS.find(gift => gift.key === giftKey) || null;
+}
+
+function getAvailableKingGenerosityGifts(player) {
+  return KING_GENEROSITY_GIFTS.filter(gift => {
+    if (typeof gift.isAvailable !== "function") return true;
+    return gift.isAvailable(player);
+  });
+}
+
+function pickRandomKingGenerosityOffers(player) {
+  const pool = getAvailableKingGenerosityGifts(player).slice();
+  for (let i = pool.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [pool[i], pool[j]] = [pool[j], pool[i]];
+  }
+  return pool.slice(0, Math.min(2, pool.length)).map(gift => gift.key);
 }
 
 function getKingAuctionResultTitle() {
@@ -539,6 +761,90 @@ function syncKingAuctionModalVisibility() {
   openKingAuctionModal(localPlayerIndex);
 }
 
+function syncKingGenerosityModalState(viewerPlayerIndex = kingGenerosityViewerPlayerIndex) {
+  if (!kingGenerosityModal || !Array.isArray(kingGenerosityOfferCards)) return;
+  const showAllPlayers = !Number.isInteger(viewerPlayerIndex);
+  if (kingGenerosityDescription) {
+    kingGenerosityDescription.textContent = "Король хочет порадовать подданых! Выберите один из подарков!";
+  }
+  let visibleCards = 0;
+  kingGenerosityOfferCards.forEach(card => {
+    const playerIndex = Number(card.dataset.kingGenerosityPlayer);
+    const player = players[playerIndex];
+    const chosen = Boolean(kingGenerosityState?.chosen?.[playerIndex]);
+    const shouldShow =
+      Boolean(player) &&
+      (showAllPlayers || playerIndex === viewerPlayerIndex) &&
+      (!showAllPlayers || !chosen);
+    card.classList.toggle("is-hidden", !shouldShow);
+    if (!shouldShow || !player) return;
+    visibleCards += 1;
+    const nameElem = card.querySelector(".king-generosity-player-name");
+    if (nameElem) {
+      nameElem.textContent = player.name || `Игрок ${playerIndex + 1}`;
+      nameElem.style.color = player.color || "";
+    }
+    const statusElem = card.querySelector(`[data-king-generosity-status="${playerIndex}"]`);
+    if (statusElem) {
+      statusElem.textContent = chosen ? "Подарок уже выбран." : "Доступно 2 подарка. Можно взять только один.";
+    }
+    const offers = Array.isArray(kingGenerosityState?.offers?.[playerIndex]) ? kingGenerosityState.offers[playerIndex] : [];
+    const buttons = Array.from(card.querySelectorAll(`[data-king-generosity-player-choice="${playerIndex}"]`));
+    buttons.forEach((button, offerIndex) => {
+      const giftKey = offers[offerIndex] || "";
+      const gift = getKingGenerosityGiftByKey(giftKey);
+      const titleElem = button.querySelector(`[data-king-generosity-choice-title="${offerIndex}"]`);
+      const textElem = button.querySelector(`[data-king-generosity-choice-text="${offerIndex}"]`);
+      button.dataset.giftKey = giftKey;
+      button.disabled = chosen || !gift;
+      button.style.display = gift ? "flex" : "none";
+      if (titleElem) {
+        titleElem.textContent = gift ? gift.title : "";
+      }
+      if (textElem) {
+        textElem.textContent = gift ? gift.text : "";
+      }
+    });
+  });
+  kingGenerosityModal.style.display = isKingGenerosityActive() && visibleCards > 0 ? "flex" : "none";
+  refreshTurnControls();
+}
+
+function openKingGenerosityModal(playerIndex = null) {
+  kingGenerosityViewerPlayerIndex = Number.isInteger(playerIndex) ? playerIndex : null;
+  syncKingGenerosityModalState(kingGenerosityViewerPlayerIndex);
+}
+
+function closeKingGenerosityModal() {
+  if (!kingGenerosityModal) return;
+  kingGenerosityModal.style.display = "none";
+  kingGenerosityViewerPlayerIndex = null;
+  refreshTurnControls();
+}
+
+function syncKingGenerosityModalVisibility() {
+  if (!kingGenerosityModal) return;
+  const inMultiplayer =
+    typeof socket !== "undefined" &&
+    socket &&
+    typeof onlineMatchStarted !== "undefined" &&
+    onlineMatchStarted;
+  if (!isKingGenerosityActive()) {
+    closeKingGenerosityModal();
+    return;
+  }
+  if (!inMultiplayer) {
+    openKingGenerosityModal(null);
+    return;
+  }
+  if (typeof localPlayerIndex !== "number") return;
+  if (kingGenerosityState.chosen?.[localPlayerIndex]) {
+    closeKingGenerosityModal();
+    return;
+  }
+  openKingGenerosityModal(localPlayerIndex);
+}
+
 function announceKingAuctionResult(result) {
   const payloadByPlayerIndex = {};
   const bids = Array.isArray(result?.bids) ? result.bids : players.map(() => 0);
@@ -649,6 +955,78 @@ function startKingAuctionWorldEvent() {
       return;
     }
     openKingAuctionModal(playerIndex);
+  });
+}
+
+function finishKingGenerosityWorldEvent() {
+  kingGenerosityState = normalizeKingGenerosityState();
+  closeKingGenerosityModal();
+  if (typeof emitStateNow === "function") {
+    emitStateNow(true);
+  }
+  refreshTurnControls();
+  scheduleAutoRoll();
+}
+
+function selectKingGenerosityGift(playerIndex, giftKey) {
+  if (!isKingGenerosityActive() || !Number.isInteger(playerIndex) || !players[playerIndex]) return false;
+  if (kingGenerosityState.chosen?.[playerIndex]) return false;
+  const offers = Array.isArray(kingGenerosityState?.offers?.[playerIndex]) ? kingGenerosityState.offers[playerIndex] : [];
+  if (!offers.includes(giftKey)) return false;
+  const gift = getKingGenerosityGiftByKey(giftKey);
+  if (!gift) return false;
+  const player = players[playerIndex];
+  if (typeof gift.isAvailable === "function" && !gift.isAvailable(player)) {
+    showPrivatePickupToastForPlayer(playerIndex, "Этот подарок сейчас недоступен.");
+    syncKingGenerosityModalState();
+    return false;
+  }
+  const resultText = gift.apply(player);
+  kingGenerosityState.chosen[playerIndex] = true;
+  updatePlayerResources(playerIndex);
+  showPrivatePickupToastForPlayer(playerIndex, resultText || `Получен подарок: ${gift.title}.`);
+  const allChosen = kingGenerosityState.chosen.every(Boolean);
+  if (Number.isInteger(kingGenerosityViewerPlayerIndex) && kingGenerosityViewerPlayerIndex === playerIndex) {
+    closeKingGenerosityModal();
+  } else {
+    syncKingGenerosityModalState();
+  }
+  if (typeof emitStateNow === "function") {
+    emitStateNow(true);
+  }
+  if (allChosen) {
+    finishKingGenerosityWorldEvent();
+  } else {
+    refreshTurnControls();
+  }
+  return true;
+}
+
+function startKingGenerosityWorldEvent() {
+  const offers = players.map(player => pickRandomKingGenerosityOffers(player));
+  kingGenerosityState = normalizeKingGenerosityState({
+    active: true,
+    offers,
+    chosen: players.map(() => false)
+  });
+  if (typeof emitStateNow === "function") {
+    emitStateNow(true);
+  }
+  const inMultiplayer =
+    typeof socket !== "undefined" &&
+    socket &&
+    typeof onlineMatchStarted !== "undefined" &&
+    onlineMatchStarted;
+  if (!inMultiplayer) {
+    openKingGenerosityModal(null);
+    return;
+  }
+  players.forEach((_, playerIndex) => {
+    if (shouldDelegatePrivateUiToPlayer(playerIndex)) {
+      emitPrivateUiToPlayer(playerIndex, "showKingGenerosityModal", { playerIndex });
+      return;
+    }
+    openKingGenerosityModal(playerIndex);
   });
 }
 
@@ -821,6 +1199,10 @@ function activateScheduledWorldEvents() {
     }
     if (event.key === WORLD_EVENTS.kingAuction.key) {
       startKingAuctionWorldEvent();
+      return;
+    }
+    if (event.key === WORLD_EVENTS.kingGenerosity.key) {
+      startKingGenerosityWorldEvent();
       return;
     }
     activeWorldEvents[event.key] = {
@@ -2020,6 +2402,27 @@ if (kingAuctionSubmitButtons.length) {
         return;
       }
       submitKingAuctionBid(playerIndex, amount);
+    });
+  });
+}
+if (kingGenerosityChoiceButtons.length) {
+  kingGenerosityChoiceButtons.forEach(button => {
+    button.addEventListener("click", () => {
+      const playerIndex = Number(button.dataset.kingGenerosityPlayerChoice);
+      const giftKey = String(button.dataset.giftKey || "").trim();
+      const player = players[playerIndex];
+      if (!Number.isInteger(playerIndex) || !player || !giftKey) return;
+      if (shouldRoutePrivateUiActionToHost(playerIndex)) {
+        emitPrivateUiActionToHost({
+          modalType: "kingGenerosity",
+          actionType: "claim",
+          playerIndex,
+          payload: { giftKey }
+        });
+        closeKingGenerosityModal();
+        return;
+      }
+      selectKingGenerosityGift(playerIndex, giftKey);
     });
   });
 }
@@ -4841,11 +5244,19 @@ function resolveBattle(attackerIndex, defenderIndex, options = {}) {
   if (defenderRemaining > attackerRemaining) {
     winnerIndex = defenderIndex;
   }
+  const loserIndex = winnerIndex === attackerIndex ? defenderIndex : attackerIndex;
+  const loser = players[loserIndex];
+  let influenceLoss = 0;
+  if (loser) {
+    influenceLoss = Math.min(HERO_BATTLE_INFLUENCE_LOSS, Math.max(0, loser.resources.influence || 0));
+    loser.resources.influence = Math.max(0, (loser.resources.influence || 0) - HERO_BATTLE_INFLUENCE_LOSS);
+  }
   let stolen = null;
   if (!options.noSteal) {
-    const loserIndex = winnerIndex === attackerIndex ? defenderIndex : attackerIndex;
     stolen = stealResources(winnerIndex, loserIndex);
   }
+  updatePlayerResources(attackerIndex);
+  updatePlayerResources(defenderIndex);
 
   return {
     attackerName: attacker.name,
@@ -4858,6 +5269,7 @@ function resolveBattle(attackerIndex, defenderIndex, options = {}) {
     winnerIndex,
     defenderIndex,
     attackerIndex,
+    influenceLoss,
     stolen
   };
 }
@@ -5090,6 +5502,9 @@ function buildBattleSummaryLines(result) {
     }
     if (stolenParts.length) {
       lines.push(`Победитель забрал ${stolenParts.join(", ")} из кармана проигравшего.`);
+    }
+    if (result.influenceLoss > 0) {
+      lines.push(`Проигравший также потерял ${result.influenceLoss} влияния.`);
     }
     return lines;
   }
@@ -5663,6 +6078,7 @@ const TURN_BLOCKING_MODALS = [
   () => lavkaModal,
   () => workshopModal,
   () => kingAuctionModal,
+  () => kingGenerosityModal,
   () => hireModal,
   () => repairModal,
   () => guardModal,
@@ -5685,6 +6101,7 @@ function isElementShown(elem) {
 function canLocalPlayerAct() {
   if (typeof onlineGamePaused !== "undefined" && onlineGamePaused) return false;
   if (isKingAuctionBlockingGameplay()) return false;
+  if (isKingGenerosityBlockingGameplay()) return false;
   const inMultiplayer = typeof socket !== "undefined" && socket;
   if (!inMultiplayer) return true;
   if (typeof localPlayerIndex === "undefined" || localPlayerIndex === null) return true;
@@ -5830,7 +6247,7 @@ function completeTurnAdvance() {
 function tryFinishPendingTurn(manual = false) {
   if (!pendingTurnAdvance) return false;
   if (!manual && pendingTurnManualOnly) return false;
-  if (hasBlockingTurnModalOpen() || hasDeferredPrivateTurnBlock() || isKingAuctionBlockingGameplay()) {
+  if (hasBlockingTurnModalOpen() || hasDeferredPrivateTurnBlock() || isKingAuctionBlockingGameplay() || isKingGenerosityBlockingGameplay()) {
     refreshTurnControls();
     return false;
   }
@@ -5840,7 +6257,7 @@ function tryFinishPendingTurn(manual = false) {
 
 function requestTurnAdvance() {
   pendingTurnAdvance = true;
-  pendingTurnManualOnly = hasBlockingTurnModalOpen() || hasDeferredPrivateTurnBlock() || isKingAuctionBlockingGameplay();
+  pendingTurnManualOnly = hasBlockingTurnModalOpen() || hasDeferredPrivateTurnBlock() || isKingAuctionBlockingGameplay() || isKingGenerosityBlockingGameplay();
   refreshTurnControls();
   if (!pendingTurnManualOnly) {
     tryFinishPendingTurn(false);
@@ -6334,6 +6751,7 @@ function scheduleAutoRoll() {
   if (gameEnded) return;
   if (movesRemaining > 0) return;
   if (isKingAuctionBlockingGameplay()) return;
+  if (isKingGenerosityBlockingGameplay()) return;
   if (rollInfo) {
     rollInfo.innerHTML = 'БРОСОК <span class="dots"><span class="dot"></span><span class="dot"></span><span class="dot"></span></span>';
     rollInfo.classList.add("rolling");
@@ -6350,7 +6768,7 @@ function tryAutoRoll() {
   if (typeof socket !== "undefined" && socket && !isHost) return;
   if (gameEnded) return;
   if (movesRemaining > 0) return;
-  if (hasBlockingTurnModalOpen() || hasDeferredPrivateTurnBlock() || isKingAuctionBlockingGameplay()) return;
+  if (hasBlockingTurnModalOpen() || hasDeferredPrivateTurnBlock() || isKingAuctionBlockingGameplay() || isKingGenerosityBlockingGameplay()) return;
   if (processRobberAmbushChance()) return;
   doRoll();
 }
@@ -6463,6 +6881,8 @@ function resetGameState() {
   kingAuctionState = normalizeKingAuctionState();
   kingAuctionDraftBids.fill("");
   closeKingAuctionModal();
+  kingGenerosityState = normalizeKingGenerosityState();
+  closeKingGenerosityModal();
   clearReachable();
   if (autoRollTimer) {
     clearTimeout(autoRollTimer);

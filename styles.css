@@ -829,6 +829,7 @@
     #lavkaModal,
     #workshopModal,
     #kingAuctionModal,
+    #kingGenerosityModal,
     #cityModal,
     #hireModal,
     #repairModal,
@@ -1102,7 +1103,8 @@
       background: rgba(10, 20, 33, 0.6);
       z-index: 88;
     }
-    #kingAuctionModal {
+    #kingAuctionModal,
+    #kingGenerosityModal {
       position: fixed;
       inset: 0;
       display: none;
@@ -1187,12 +1189,25 @@
       width: min(560px, 100%);
       gap: 16px;
     }
+    .king-generosity-card {
+      width: min(560px, 100%);
+      gap: 16px;
+    }
     .king-auction-card h3 {
       margin: 0;
       font-size: 1.45rem;
       letter-spacing: 0.08em;
     }
+    .king-generosity-card h3 {
+      margin: 0;
+      font-size: 1.45rem;
+      letter-spacing: 0.08em;
+    }
     .king-auction-offers {
+      display: grid;
+      gap: 12px;
+    }
+    .king-generosity-offers {
       display: grid;
       gap: 12px;
     }
@@ -1206,10 +1221,28 @@
       background: rgba(8, 15, 26, 0.45);
       text-align: left;
     }
+    .king-generosity-offer {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      padding: 14px;
+      border: 1px solid #334155;
+      border-radius: 10px;
+      background: rgba(8, 15, 26, 0.45);
+      text-align: left;
+    }
     .king-auction-offer.is-hidden {
       display: none;
     }
+    .king-generosity-offer.is-hidden {
+      display: none;
+    }
     .king-auction-player-name {
+      margin: 0;
+      font-size: 1.05rem;
+      letter-spacing: 0.04em;
+    }
+    .king-generosity-player-name {
       margin: 0;
       font-size: 1.05rem;
       letter-spacing: 0.04em;
@@ -1218,6 +1251,27 @@
       margin: 0;
       color: #f8fafc;
       font-weight: 600;
+    }
+    .king-generosity-player-status {
+      min-height: 18px;
+      margin: 0;
+      color: #fbbf24;
+      font-size: 0.88rem;
+    }
+    .king-generosity-choice-list {
+      display: grid;
+      gap: 10px;
+    }
+    .king-generosity-choice {
+      width: 100%;
+      padding: 12px 14px;
+      border: 1px solid #5b4320;
+      border-radius: 10px;
+      background: linear-gradient(180deg, rgba(154, 107, 47, 0.2) 0%, rgba(122, 75, 23, 0.32) 100%);
+    }
+    .king-generosity-choice:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
     }
     .king-auction-input-wrap {
       display: flex;

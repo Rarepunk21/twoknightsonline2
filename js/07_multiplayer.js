@@ -357,6 +357,7 @@ function buildState() {
     scheduledWorldEvents: typeof cloneWorldEventSchedule === "function" ? cloneWorldEventSchedule() : [],
     activeWorldEvents: typeof cloneActiveWorldEvents === "function" ? cloneActiveWorldEvents() : {},
     kingAuctionState: typeof cloneKingAuctionState === "function" ? cloneKingAuctionState() : null,
+    kingGenerosityState: typeof cloneKingGenerosityState === "function" ? cloneKingGenerosityState() : null,
     gameWinnerIndex,
     upperWormhole: shallowClone(upperWormhole),
     wormholeSpawnTurns: shallowClone(wormholeSpawnTurns),
@@ -659,6 +660,9 @@ function applyState(state) {
   if (typeof normalizeKingAuctionState === "function") {
     kingAuctionState = normalizeKingAuctionState(state.kingAuctionState);
   }
+  if (typeof normalizeKingGenerosityState === "function") {
+    kingGenerosityState = normalizeKingGenerosityState(state.kingGenerosityState);
+  }
 
   state.players?.forEach((data, idx) => {
     if (!players[idx]) return;
@@ -809,6 +813,9 @@ function applyState(state) {
   updateStatusPanel();
   if (typeof syncKingAuctionModalVisibility === "function") {
     syncKingAuctionModalVisibility();
+  }
+  if (typeof syncKingGenerosityModalVisibility === "function") {
+    syncKingGenerosityModalVisibility();
   }
   if (incomingBattleId !== lastBattleId) {
     lastBattleId = incomingBattleId;
@@ -1028,6 +1035,12 @@ function performPrivateUiAction(action) {
     if (modalType === "kingAuction") {
       if (actionType === "submit" && typeof submitKingAuctionBid === "function") {
         submitKingAuctionBid(playerIndex, payload.amount);
+      }
+      return;
+    }
+    if (modalType === "kingGenerosity") {
+      if (actionType === "claim" && typeof selectKingGenerosityGift === "function") {
+        selectKingGenerosityGift(playerIndex, payload.giftKey);
       }
       return;
     }
@@ -1414,6 +1427,10 @@ if (socket) {
       openKingAuctionModal(payload.playerIndex);
       return;
     }
+    if (type === "showKingGenerosityModal" && typeof openKingGenerosityModal === "function") {
+      openKingGenerosityModal(payload.playerIndex);
+      return;
+    }
     if (type === "activateBallistaMode") {
       if (Number.isInteger(payload.playerIndex)) {
         ballistaModePlayerIndex = payload.playerIndex;
@@ -1541,7 +1558,7 @@ if (socket) {
     if (!onlineMatchStarted) return;
     if (isHost || applyingRemoteState || performingRemoteAction) return;
     if (onlineGamePaused) return;
-    if (e.target?.closest?.("#castleModal, #hireModal, #trollCaveModal, #battleModal, #worldEventModal, #kingAuctionModal, #barracksModal, #lavkaModal, #workshopModal, #cityModal, #masterModal, #mageModal, #stoneModal, #stoneResultModal, #repairModal, #guardModal")) {
+    if (e.target?.closest?.("#castleModal, #hireModal, #trollCaveModal, #battleModal, #worldEventModal, #kingAuctionModal, #kingGenerosityModal, #barracksModal, #lavkaModal, #workshopModal, #cityModal, #masterModal, #mageModal, #stoneModal, #stoneResultModal, #repairModal, #guardModal")) {
       return;
     }
     const action = getActionFromEvent(e);
@@ -1563,7 +1580,7 @@ if (socket) {
     if (!onlineMatchStarted) return;
     if (!isHost || applyingRemoteState || performingRemoteAction) return;
     if (onlineGamePaused) return;
-    if (e.target?.closest?.("#castleModal, #hireModal, #trollCaveModal, #battleModal, #worldEventModal, #kingAuctionModal, #barracksModal, #lavkaModal, #workshopModal, #cityModal, #masterModal, #mageModal, #stoneModal, #stoneResultModal, #repairModal, #guardModal")) {
+    if (e.target?.closest?.("#castleModal, #hireModal, #trollCaveModal, #battleModal, #worldEventModal, #kingAuctionModal, #kingGenerosityModal, #barracksModal, #lavkaModal, #workshopModal, #cityModal, #masterModal, #mageModal, #stoneModal, #stoneResultModal, #repairModal, #guardModal")) {
       return;
     }
     const action = getActionFromEvent(e);
