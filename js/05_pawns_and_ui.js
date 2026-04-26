@@ -5316,7 +5316,7 @@ function resolveTrollBattle(playerIndex, trollArmy) {
   if (playerWon) {
     const hadTrollClub = (player.trollClubCount || 0) > 0;
     player.trollClubCount = (player.trollClubCount || 0) + 1;
-    const gotToken = Math.random() < 0.75;
+    const gotToken = Math.random() < 0.5;
     if (gotToken) {
       player.tokenCount = (player.tokenCount || 0) + 1;
     }
