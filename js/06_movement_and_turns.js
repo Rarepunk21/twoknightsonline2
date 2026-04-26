@@ -31,6 +31,10 @@ game.addEventListener("click", e => {
     tryApplyBridgeToCell(currentPlayerIndex, key);
     return;
   }
+  if (typeof voidShardModePlayerIndex !== "undefined" && voidShardModePlayerIndex === currentPlayerIndex) {
+    tryApplyVoidShardToCell(currentPlayerIndex, key);
+    return;
+  }
   if ((currentPlayer.layer || WORLD_LAYER_UPPER) === WORLD_LAYER_UNDER) {
     if (gridX === currentPlayer.x && gridY === currentPlayer.y) {
       return;

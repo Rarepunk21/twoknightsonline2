@@ -247,6 +247,7 @@ function buildState() {
       cloverCount: p.cloverCount,
       trollClubCount: p.trollClubCount,
       flowerCount: p.flowerCount,
+      voidShardCount: p.voidShardCount,
       tokenCount: p.tokenCount,
       ballistaCount: p.ballistaCount,
       boltCount: p.boltCount,
@@ -324,6 +325,15 @@ function buildState() {
       y: entry.y,
       turnsRemaining: entry.turnsRemaining
     })),
+    voidShardByPos: typeof voidShardByPos !== "undefined"
+      ? Object.values(voidShardByPos).map(entry => ({
+          key: entry.key,
+          x: entry.x,
+          y: entry.y,
+          turnsRemaining: entry.turnsRemaining
+        }))
+      : [],
+    voidShardSpawnTurn: typeof voidShardSpawnTurn !== "undefined" ? voidShardSpawnTurn : null,
     portalState: typeof portalState !== "undefined" && portalState ? {
       active: portalState.active,
       keys: Array.isArray(portalState.keys) ? shallowClone(portalState.keys) : [],
@@ -369,6 +379,7 @@ function buildState() {
     deferredPrivateTurnPlayerIndex,
     ballistaModePlayerIndex,
     bridgeModePlayerIndex,
+    voidShardModePlayerIndex: typeof voidShardModePlayerIndex === "number" ? voidShardModePlayerIndex : null,
     reachableKeys: Array.from(reachableKeys),
     castleOwnersByKey: shallowClone(castleOwnersByKey),
     castleStatsByKey: shallowClone(castleStatsByKey)
@@ -402,6 +413,9 @@ function resetDynamicCells() {
   Object.keys(specialByPos).forEach(key => delete specialByPos[key]);
   Object.keys(stoneByPos).forEach(key => delete stoneByPos[key]);
   Object.keys(rainbowByPos).forEach(key => delete rainbowByPos[key]);
+  if (typeof voidShardByPos !== "undefined") {
+    Object.keys(voidShardByPos).forEach(key => delete voidShardByPos[key]);
+  }
   if (typeof initPortalState === "function") {
     initPortalState();
   } else if (typeof portalState !== "undefined" && portalState) {
@@ -539,6 +553,18 @@ function applyRainbow(entry) {
   rainbowByPos[key] = { key, x: entry.x, y: entry.y, turnsRemaining: entry.turnsRemaining };
 }
 
+function applyVoidShard(entry) {
+  if (typeof voidShardByPos === "undefined") return;
+  const key = entry.key || `${entry.x},${entry.y}`;
+  const cell = grid[key];
+  if (!cell) return;
+  cell.classList.remove("inactive");
+  cell.classList.add("void-shard", "important");
+  cell.textContent = "";
+  setCellIcon(cell, "void_shard.png", "Void shard");
+  voidShardByPos[key] = { key, x: entry.x, y: entry.y, turnsRemaining: entry.turnsRemaining };
+}
+
 function applyMaster() {
   const key = MASTER_CELL.key;
   const cell = grid[key];
@@ -646,6 +672,9 @@ function applyState(state) {
   deferredPrivateTurnPlayerIndex = state.deferredPrivateTurnPlayerIndex ?? deferredPrivateTurnPlayerIndex;
   ballistaModePlayerIndex = Number.isInteger(state.ballistaModePlayerIndex) ? state.ballistaModePlayerIndex : null;
   bridgeModePlayerIndex = Number.isInteger(state.bridgeModePlayerIndex) ? state.bridgeModePlayerIndex : null;
+  if (typeof voidShardModePlayerIndex !== "undefined") {
+    voidShardModePlayerIndex = Number.isInteger(state.voidShardModePlayerIndex) ? state.voidShardModePlayerIndex : null;
+  }
   upperWormhole = state.upperWormhole ?? upperWormhole;
   wormholeSpawnTurns = Array.isArray(state.wormholeSpawnTurns) ? state.wormholeSpawnTurns.slice() : wormholeSpawnTurns;
   wormholeSpawnIndex = state.wormholeSpawnIndex ?? wormholeSpawnIndex;
@@ -699,6 +728,10 @@ function applyState(state) {
 
   (state.stoneByPos || []).forEach(applyStone);
   (state.rainbowByPos || []).forEach(applyRainbow);
+  (state.voidShardByPos || []).forEach(applyVoidShard);
+  if (typeof voidShardSpawnTurn !== "undefined") {
+    voidShardSpawnTurn = state.voidShardSpawnTurn ?? voidShardSpawnTurn;
+  }
 
   if (state.portalState && typeof portalState !== "undefined" && portalState) {
     portalState.active = Boolean(state.portalState.active);
@@ -1025,6 +1058,10 @@ function performPrivateUiAction(action) {
       }
       if (actionType === "cancelBridge" && typeof cancelBridgeMode === "function") {
         cancelBridgeMode(playerIndex);
+        return;
+      }
+      if (actionType === "cancelVoidShard" && typeof cancelVoidShardMode === "function") {
+        cancelVoidShardMode(playerIndex);
         return;
       }
       if (actionType === "use" && payload.useAction && typeof applyPotion === "function") {
@@ -1473,9 +1510,41 @@ if (socket) {
       }
       return;
     }
+    if (type === "activateVoidShardMode") {
+      if (typeof voidShardModePlayerIndex !== "undefined" && Number.isInteger(payload.playerIndex)) {
+        voidShardModePlayerIndex = payload.playerIndex;
+        if (typeof clearReachable === "function") {
+          clearReachable();
+        }
+        if (typeof showVoidShardTargets === "function") {
+          showVoidShardTargets(payload.playerIndex);
+        }
+        if (typeof updateInventory === "function") {
+          updateInventory(payload.playerIndex);
+        }
+      }
+      return;
+    }
     if (type === "clearBridgeMode") {
       if (!Number.isInteger(payload.playerIndex) || bridgeModePlayerIndex === payload.playerIndex) {
         bridgeModePlayerIndex = null;
+      }
+      if (typeof clearReachable === "function") {
+        clearReachable();
+      }
+      if (typeof showReachable === "function") {
+        showReachable();
+      }
+      if (Number.isInteger(payload.playerIndex) && typeof updateInventory === "function") {
+        updateInventory(payload.playerIndex);
+      }
+      return;
+    }
+    if (type === "clearVoidShardMode") {
+      if (typeof voidShardModePlayerIndex !== "undefined") {
+        if (!Number.isInteger(payload.playerIndex) || voidShardModePlayerIndex === payload.playerIndex) {
+          voidShardModePlayerIndex = null;
+        }
       }
       if (typeof clearReachable === "function") {
         clearReachable();

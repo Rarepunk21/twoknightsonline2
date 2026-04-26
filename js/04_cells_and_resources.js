@@ -120,7 +120,7 @@ function clearCellIcon(cell) {
 function restoreImportantNodeCell(key, cell) {
   const node = nodeByPos[key];
   if (!node || !cell) return false;
-  cell.classList.remove("inactive", "special", "resource-disabled", "mercenary", "thief", "cutthroat", "mage", "portal", "wormhole", "stairs", "flower", "clover", "stone", "rainbow-stone", "master", "troll", "troll-cave", "treasure");
+  cell.classList.remove("inactive", "special", "resource-disabled", "mercenary", "thief", "cutthroat", "mage", "portal", "wormhole", "stairs", "flower", "clover", "stone", "rainbow-stone", "void-shard", "master", "troll", "troll-cave", "treasure");
   cell.classList.add("important", node.type);
   cell.textContent = node.label || node.id || "";
   clearCellIcon(cell);
@@ -308,6 +308,13 @@ const RAINBOW_MAX_DURATION = 8;
 const rainbowSpawnTurns = [];
 let rainbowSpawnIndex = 0;
 const rainbowByPos = {};
+const VOID_SHARD_SPAWN_MIN_TURN = 15;
+const VOID_SHARD_SPAWN_MAX_TURN = 300;
+const VOID_SHARD_MIN_DURATION = 4;
+const VOID_SHARD_MAX_DURATION = 6;
+const VOID_SHARD_ICON = { file: "void_shard.png", alt: "Осколок пустоты" };
+let voidShardSpawnTurn = null;
+const voidShardByPos = {};
 const MASTER_CELL = { x: 15, y: 1, key: "15,1" };
 const MASTER_SPAWN_INTERVAL = 20;
 const MASTER_DURATION = 6;
@@ -547,7 +554,7 @@ function buildTrollPath(start, end) {
           !barbarianCells.some(cell => cell.key === key) &&
           !(treasure && treasure.key === key) &&
           !(flowerArtifact && flowerArtifact.key === key) &&
-          !stoneByPos[key] && !rainbowByPos[key]) {
+          !stoneByPos[key] && !rainbowByPos[key] && !voidShardByPos[key]) {
         cx = nx;
         remainingX -= stepX;
         path.push({ x: cx, y: cy, key: `${cx},${cy}` });
@@ -563,7 +570,7 @@ function buildTrollPath(start, end) {
           !barbarianCells.some(cell => cell.key === key) &&
           !(treasure && treasure.key === key) &&
           !(flowerArtifact && flowerArtifact.key === key) &&
-          !stoneByPos[key] && !rainbowByPos[key]) {
+          !stoneByPos[key] && !rainbowByPos[key] && !voidShardByPos[key]) {
         cy = ny;
         remainingY -= stepY;
         path.push({ x: cx, y: cy, key: `${cx},${cy}` });
@@ -587,6 +594,7 @@ function buildTrollPath(start, end) {
         if (flowerArtifact && flowerArtifact.key === key) return false;
         if (stoneByPos[key]) return false;
         if (rainbowByPos[key]) return false;
+        if (voidShardByPos[key]) return false;
         return true;
       });
       if (!valid.length) break;
@@ -615,6 +623,7 @@ function buildTrollPath(start, end) {
       if (flowerArtifact && flowerArtifact.key === key) return false;
       if (stoneByPos[key]) return false;
       if (rainbowByPos[key]) return false;
+      if (voidShardByPos[key]) return false;
       return true;
     });
     if (!valid.length) break;
@@ -780,7 +789,7 @@ function setCellToInactive(x, y, {skipTreasureCleanup = false} = {}) {
     clearTreasure();
     return;
   }
-  cell.classList.remove("resource", "important", "owned", "reachable", "barbarian", "special", "forest", "resource-disabled", "mercenary", "thief", "cutthroat", "mage", "portal", "wormhole", "stairs", "flower", "clover", "stone", "rainbow-stone", "master", "troll", "troll-cave", "treasure");
+  cell.classList.remove("resource", "important", "owned", "reachable", "barbarian", "special", "forest", "resource-disabled", "mercenary", "thief", "cutthroat", "mage", "portal", "wormhole", "stairs", "flower", "clover", "stone", "rainbow-stone", "void-shard", "master", "troll", "troll-cave", "treasure");
   cell.classList.add("inactive");
   cell.textContent = "";
   clearCellIcon(cell);
@@ -1203,6 +1212,7 @@ function getTreasureEligibleKeys() {
     if (specialByPos[key]) return false;
     if (stoneByPos[key]) return false;
     if (rainbowByPos[key]) return false;
+    if (voidShardByPos[key]) return false;
     if (cloverArtifact && cloverArtifact.key === key) return false;
     if (masterActive && key === MASTER_CELL.key) return false;
     if (playerPositions.has(key)) return false;
@@ -1223,6 +1233,9 @@ function getFlowerEligibleKeys() {
     if (nodeByPos[key]) return false;
     if (resourceByPos[key]) return false;
     if (specialByPos[key]) return false;
+    if (stoneByPos[key]) return false;
+    if (rainbowByPos[key]) return false;
+    if (voidShardByPos[key]) return false;
     if (cloverArtifact && cloverArtifact.key === key) return false;
     if (playerPositions.has(key)) return false;
     if (treasure && treasure.key === key) return false;
@@ -1243,6 +1256,8 @@ function getStoneEligibleKeys() {
     if (resourceByPos[key]) return false;
     if (specialByPos[key]) return false;
     if (stoneByPos[key]) return false;
+    if (rainbowByPos[key]) return false;
+    if (voidShardByPos[key]) return false;
     if (cloverArtifact && cloverArtifact.key === key) return false;
     if (playerPositions.has(key)) return false;
     if (treasure && treasure.key === key) return false;
@@ -1265,6 +1280,7 @@ function getRainbowEligibleKeys() {
     if (specialByPos[key]) return false;
     if (stoneByPos[key]) return false;
     if (rainbowByPos[key]) return false;
+    if (voidShardByPos[key]) return false;
     if (cloverArtifact && cloverArtifact.key === key) return false;
     if (playerPositions.has(key)) return false;
     if (treasure && treasure.key === key) return false;
@@ -1440,6 +1456,13 @@ function clearRainbowStone(key) {
   delete rainbowByPos[key];
 }
 
+function clearVoidShard(key) {
+  const entry = voidShardByPos[key];
+  if (!entry) return;
+  setCellToInactive(entry.x, entry.y);
+  delete voidShardByPos[key];
+}
+
 function spawnMasterCell() {
   const key = MASTER_CELL.key;
   const cell = grid[key];
@@ -1559,6 +1582,52 @@ function spawnRainbowStone() {
   return true;
 }
 
+function getVoidShardEligibleKeys() {
+  const playerPositions = new Set(players.map(p => `${p.x},${p.y}`));
+  return Object.keys(grid).filter(key => {
+    const [x, y] = key.split(",").map(Number);
+    if (nodeByPos[key]) return false;
+    if (resourceByPos[key]) return false;
+    if (specialByPos[key]) return false;
+    if (stoneByPos[key]) return false;
+    if (rainbowByPos[key]) return false;
+    if (voidShardByPos[key]) return false;
+    if (cloverArtifact && cloverArtifact.key === key) return false;
+    if (playerPositions.has(key)) return false;
+    if (treasure && treasure.key === key) return false;
+    if (flowerArtifact && flowerArtifact.key === key) return false;
+    if (barbarianCells.some(cell => cell.key === key)) return false;
+    if (isSpawnBlocked(x, y)) return false;
+    if (blockedCellKeys.has(key)) return false;
+    const cell = grid[key];
+    if (!cell) return false;
+    if (!cell.classList.contains("inactive")) return false;
+    return true;
+  });
+}
+
+function spawnVoidShard() {
+  const eligibleKeys = getVoidShardEligibleKeys();
+  if (eligibleKeys.length === 0) return false;
+  const key = eligibleKeys[Math.floor(Math.random() * eligibleKeys.length)];
+  const [xStr, yStr] = key.split(",");
+  const x = Number(xStr);
+  const y = Number(yStr);
+  const cell = grid[key];
+  if (!cell) return false;
+  cell.classList.remove("inactive");
+  cell.classList.add("void-shard", "important");
+  cell.textContent = "";
+  setCellIcon(cell, VOID_SHARD_ICON.file, VOID_SHARD_ICON.alt);
+  voidShardByPos[key] = {
+    key,
+    x,
+    y,
+    turnsRemaining: randomIntRange(VOID_SHARD_MIN_DURATION, VOID_SHARD_MAX_DURATION)
+  };
+  return true;
+}
+
 function handleFlowerTimers() {
   if (flowerArtifact) {
     flowerTurnsRemaining -= 1;
@@ -1617,6 +1686,23 @@ function handleRainbowSpawns() {
   }
 }
 
+function handleVoidShardSpawns() {
+  if (voidShardSpawnTurn === null) {
+    if (Math.random() < 0.5) {
+      voidShardSpawnTurn = randomIntRange(VOID_SHARD_SPAWN_MIN_TURN, VOID_SHARD_SPAWN_MAX_TURN);
+    } else {
+      voidShardSpawnTurn = -1;
+    }
+  }
+  if (voidShardSpawnTurn < 0) return;
+  if (Object.keys(voidShardByPos).length > 0) return;
+  if (turnCounter < voidShardSpawnTurn) return;
+  const spawned = spawnVoidShard();
+  if (spawned) {
+    voidShardSpawnTurn = -1;
+  }
+}
+
 function handleRainbowTimers() {
   Object.values(rainbowByPos).forEach(entry => {
     entry.turnsRemaining -= 1;
@@ -1667,6 +1753,15 @@ function handleStoneTimers() {
     entry.turnsRemaining -= 1;
     if (entry.turnsRemaining <= 0) {
       clearStone(entry.key);
+    }
+  });
+}
+
+function handleVoidShardTimers() {
+  Object.values(voidShardByPos).forEach(entry => {
+    entry.turnsRemaining -= 1;
+    if (entry.turnsRemaining <= 0) {
+      clearVoidShard(entry.key);
     }
   });
 }

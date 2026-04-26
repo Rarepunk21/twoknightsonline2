@@ -30,6 +30,7 @@ const players = [
     cloverCount: 0,
     trollClubCount: 0,
     flowerCount: 0,
+    voidShardCount: 0,
     tokenCount: 0,
     bootsCount: 0,
     ballistaCount: 0,
@@ -72,6 +73,7 @@ const players = [
     cloverCount: 0,
     trollClubCount: 0,
     flowerCount: 0,
+    voidShardCount: 0,
     tokenCount: 0,
     bootsCount: 0,
     ballistaCount: 0,
@@ -495,6 +497,7 @@ function canPlayerBuildMineLevel2(playerIndex) {
 }
 let ballistaModePlayerIndex = null;
 let bridgeModePlayerIndex = null;
+let voidShardModePlayerIndex = null;
 const bridgeOpenedKeys = new Set();
 const INVENTORY_ITEMS = [
   {key: "poison", label: "Яд", icon: "poison.png", count: player => player.poisonCount || 0},
@@ -502,6 +505,7 @@ const INVENTORY_ITEMS = [
   {key: "potion-luck", label: "Зелье удачи", icon: "potion_luck.png", count: player => player.luckPotionCount || 0, useAction: "potion-luck"},
   {key: "clover", label: "Клевер", icon: "clover.png", count: player => player.cloverCount || 0, useAction: "clover"},
   {key: "flower", label: "Таинственный цветок", icon: "mystic_flower.png", count: player => player.flowerCount || 0},
+  {key: "void-shard", label: "Осколок пустоты", icon: "void_shard.png", count: player => player.voidShardCount || 0, useAction: "void-shard"},
   {key: "token", label: "Жетон", icon: "token.png", count: player => player.tokenCount || 0},
   {key: "boots", label: "Сапоги", icon: "boots.png", count: player => player.bootsCount || 0},
   {key: "ballista", label: "Баллиста", icon: "ballista.png", count: player => player.ballistaCount || 0, useAction: "ballista"},
@@ -1344,7 +1348,7 @@ function resetCellForVisibleRender(key) {
   cell.classList.remove(
     "resource", "important", "owned", "reachable", "barbarian", "special", "forest",
     "resource-disabled", "mercenary", "thief", "cutthroat", "mage", "portal", "wormhole",
-    "stairs", "flower", "clover", "stone", "rainbow-stone", "master", "troll", "troll-cave", "treasure"
+    "stairs", "flower", "clover", "stone", "rainbow-stone", "void-shard", "master", "troll", "troll-cave", "treasure"
   );
   cell.classList.add("inactive");
   cell.textContent = "";
@@ -1471,6 +1475,16 @@ function renderUpperWorldView() {
     cell.textContent = "";
     setCellIcon(cell, "rainbow_stone.png", "Радужный камень");
   });
+  if (typeof voidShardByPos !== "undefined") {
+    Object.values(voidShardByPos).forEach(entry => {
+      const cell = grid[entry.key];
+      if (!cell) return;
+      cell.classList.remove("inactive");
+      cell.classList.add("void-shard", "important");
+      cell.textContent = "";
+      setCellIcon(cell, "void_shard.png", "Осколок пустоты");
+    });
+  }
   if (masterActive) {
     const cell = grid[MASTER_CELL.key];
     if (cell) {
@@ -1564,6 +1578,8 @@ function refreshVisibleWorld() {
   clearReachable();
   if (ballistaModePlayerIndex === currentPlayerIndex) {
     showBallistaRange(ballistaModePlayerIndex);
+  } else if (voidShardModePlayerIndex === currentPlayerIndex) {
+    showVoidShardTargets(voidShardModePlayerIndex);
   } else if (movesRemaining > 0) {
     showReachable();
   }
@@ -1649,6 +1665,10 @@ function applyPotion(playerIndex, type) {
     player.luckTurnsRemaining = Math.max(player.luckTurnsRemaining || 0, CLOVER_LUCK_TURNS);
     showPrivatePickupToastForPlayer(playerIndex, "Клевер применён: Удача +1.6 к ресурсам на 18 ходов.");
   }
+  if (type === "void-shard") {
+    activateVoidShardMode(playerIndex);
+    return;
+  }
   if (type === "trap-stun") {
     placeTrapStun(playerIndex);
     return;
@@ -1711,6 +1731,138 @@ function showBridgeTargets(playerIndex) {
       if (cell) cell.classList.add("reachable");
     }
   });
+}
+
+function getVoidShardEligibleKeys(playerIndex) {
+  const player = players[playerIndex];
+  if (!player) return [];
+  const layer = player.layer || WORLD_LAYER_UPPER;
+  if (layer === WORLD_LAYER_UNDER) {
+    const state = player.underworldState;
+    if (!state) return [];
+    const occupiedByPlayers = new Set(
+      players
+        .filter(Boolean)
+        .filter(other => (other.layer || WORLD_LAYER_UPPER) === WORLD_LAYER_UNDER)
+        .map(other => `${other.x},${other.y}`)
+    );
+    const blockedKeys = new Set();
+    if (state.stairs?.key) blockedKeys.add(state.stairs.key);
+    if (state.bridgeExitKey) blockedKeys.add(state.bridgeExitKey);
+    Object.keys(state.resourcesByPos || {}).forEach(key => blockedKeys.add(key));
+    return Object.keys(grid).filter(key => {
+      if (occupiedByPlayers.has(key)) return false;
+      if (blockedKeys.has(key)) return false;
+      const cell = grid[key];
+      return Boolean(cell) && cell.classList.contains("inactive");
+    });
+  }
+
+  const occupiedByPlayers = new Set(
+    players
+      .filter(Boolean)
+      .filter(other => (other.layer || WORLD_LAYER_UPPER) === WORLD_LAYER_UPPER)
+      .map(other => `${other.x},${other.y}`)
+  );
+  return Object.keys(grid).filter(key => {
+    if (nodeByPos[key]) return false;
+    if (resourceByPos[key]) return false;
+    if (specialByPos[key]) return false;
+    if (stoneByPos[key]) return false;
+    if (rainbowByPos[key]) return false;
+    if (typeof voidShardByPos !== "undefined" && voidShardByPos[key]) return false;
+    if (treasure?.key === key) return false;
+    if (flowerArtifact?.key === key) return false;
+    if (cloverArtifact?.key === key) return false;
+    if (masterActive && key === MASTER_CELL.key) return false;
+    if (barbarianCells.some(cell => cell.key === key)) return false;
+    if (typeof mercenaries !== "undefined" && mercenaries.some(entry => entry.key === key)) return false;
+    if (typeof thieves !== "undefined" && thieves.some(entry => entry.key === key)) return false;
+    if (typeof cutthroats !== "undefined" && cutthroats.some(entry => entry.key === key)) return false;
+    if (typeof trollState !== "undefined" && trollState?.active && trollState.key === key) return false;
+    if (bridgeOpenedKeys.has(key)) return false;
+    if (occupiedByPlayers.has(key)) return false;
+    if (isMovementBlockedKey(key)) return false;
+    const cell = grid[key];
+    return Boolean(cell) && cell.classList.contains("inactive");
+  });
+}
+
+function showVoidShardTargets(playerIndex) {
+  const revealCells = shouldRevealReachableCells();
+  getVoidShardEligibleKeys(playerIndex).forEach(key => {
+    reachableKeys.add(key);
+    if (revealCells) {
+      const cell = grid[key];
+      if (cell) cell.classList.add("reachable");
+    }
+  });
+}
+
+function activateVoidShardMode(playerIndex) {
+  const player = players[playerIndex];
+  if (!player || playerIndex !== currentPlayerIndex) return false;
+  if ((player.voidShardCount || 0) <= 0) return false;
+  if (!getVoidShardEligibleKeys(playerIndex).length) {
+    showPrivatePickupToastForPlayer(playerIndex, "Нет пустых клеток для прыжка осколком пустоты.");
+    return false;
+  }
+  voidShardModePlayerIndex = playerIndex;
+  if (shouldDelegatePrivateUiToPlayer(playerIndex)) {
+    emitPrivateUiToPlayer(playerIndex, "activateVoidShardMode", { playerIndex });
+  } else {
+    clearReachable();
+    showVoidShardTargets(playerIndex);
+  }
+  updateInventory(playerIndex);
+  showPrivatePickupToastForPlayer(playerIndex, "Осколок пустоты активирован. Выберите пустую клетку для перемещения.");
+  return true;
+}
+
+function cancelVoidShardMode(playerIndex) {
+  if (voidShardModePlayerIndex !== playerIndex) return;
+  voidShardModePlayerIndex = null;
+  if (shouldDelegatePrivateUiToPlayer(playerIndex)) {
+    emitPrivateUiToPlayer(playerIndex, "clearVoidShardMode", { playerIndex });
+  } else {
+    clearReachable();
+    showReachable();
+  }
+  updateInventory(playerIndex);
+  showPrivatePickupToastForPlayer(playerIndex, "Осколок пустоты отменён.");
+}
+
+function tryApplyVoidShardToCell(playerIndex, key) {
+  const player = players[playerIndex];
+  if (!player || voidShardModePlayerIndex !== playerIndex) return false;
+  if ((player.voidShardCount || 0) <= 0) {
+    cancelVoidShardMode(playerIndex);
+    return true;
+  }
+  if (!getVoidShardEligibleKeys(playerIndex).includes(key)) {
+    showPrivatePickupToastForPlayer(playerIndex, "Можно выбрать только пустую клетку без событий и модалок.");
+    return true;
+  }
+  const [x, y] = key.split(",").map(Number);
+  player.voidShardCount -= 1;
+  voidShardModePlayerIndex = null;
+  player.x = x;
+  player.y = y;
+  movesRemaining = 0;
+  clearReachable();
+  refreshVisibleWorld();
+  updatePawns();
+  updatePlayerResources(playerIndex);
+  updateInventory(playerIndex);
+  showPrivatePickupToastForPlayer(playerIndex, "Осколок пустоты перенёс вас в выбранную клетку. Ход завершён.");
+  if (shouldDelegatePrivateUiToPlayer(playerIndex)) {
+    emitPrivateUiToPlayer(playerIndex, "clearVoidShardMode", { playerIndex });
+  }
+  if (typeof emitStateNow === "function") {
+    emitStateNow(true);
+  }
+  endTurn();
+  return true;
 }
 
 function activateBridgeMode(playerIndex) {
@@ -1781,11 +1933,15 @@ function tryApplyBridgeToCell(playerIndex, key) {
 
 function getSpecialArtifactSlotUsage(player) {
   if (!player) return 0;
-  return (player.rainbowStoneCount || 0) + (player.flowerCount || 0);
+  return (player.rainbowStoneCount || 0) + (player.flowerCount || 0) + (player.voidShardCount || 0);
 }
 
 function hasFreeSpecialArtifactSlot(player) {
   return getSpecialArtifactSlotUsage(player) < SPECIAL_ARTIFACT_SLOT_LIMIT;
+}
+
+function isVoidShardModeActive() {
+  return typeof voidShardModePlayerIndex === "number";
 }
 
 function tryAddSpecialArtifactToInventory(player, type) {
@@ -1796,6 +1952,10 @@ function tryAddSpecialArtifactToInventory(player, type) {
   }
   if (type === "flower") {
     player.flowerCount = (player.flowerCount || 0) + 1;
+    return true;
+  }
+  if (type === "void-shard") {
+    player.voidShardCount = (player.voidShardCount || 0) + 1;
     return true;
   }
   return false;
@@ -2084,8 +2244,8 @@ function updateInventory(playerIndex) {
       const btn = document.createElement("button");
       btn.type = "button";
       btn.className = "inventory-use";
-      if (item.useAction === "ballista" && ballistaModePlayerIndex === playerIndex) {
-        btn.textContent = "Отменить";
+    if (item.useAction === "ballista" && ballistaModePlayerIndex === playerIndex) {
+      btn.textContent = "Отменить";
         btn.addEventListener("click", () => {
           if (shouldRoutePrivateUiActionToHost(playerIndex)) {
             emitPrivateUiActionToHost({
@@ -2097,9 +2257,9 @@ function updateInventory(playerIndex) {
           }
           cancelBallistaMode(playerIndex);
         });
-      } else if (item.useAction === "bridge" && bridgeModePlayerIndex === playerIndex) {
-        btn.textContent = "Отменить";
-        btn.addEventListener("click", () => {
+    } else if (item.useAction === "bridge" && bridgeModePlayerIndex === playerIndex) {
+      btn.textContent = "Отменить";
+      btn.addEventListener("click", () => {
           if (shouldRoutePrivateUiActionToHost(playerIndex)) {
             emitPrivateUiActionToHost({
               modalType: "inventory",
@@ -2109,6 +2269,19 @@ function updateInventory(playerIndex) {
             return;
           }
           cancelBridgeMode(playerIndex);
+        });
+      } else if (item.useAction === "void-shard" && voidShardModePlayerIndex === playerIndex) {
+        btn.textContent = "Отменить";
+        btn.addEventListener("click", () => {
+          if (shouldRoutePrivateUiActionToHost(playerIndex)) {
+            emitPrivateUiActionToHost({
+              modalType: "inventory",
+              actionType: "cancelVoidShard",
+              playerIndex
+            });
+            return;
+          }
+          cancelVoidShardMode(playerIndex);
         });
       } else {
         btn.textContent = "Применить";
@@ -6148,6 +6321,7 @@ function completeTurnAdvance() {
     deferredPrivateTurnPlayerIndex = null;
   }
   ballistaModePlayerIndex = null;
+  voidShardModePlayerIndex = null;
   tickAllTimedBuffs();
   collectCastleIncomes(currentPlayerIndex);
   turnCounter += 1;
@@ -6208,11 +6382,17 @@ function completeTurnAdvance() {
   if (typeof handleCloverTimers === "function") {
     handleCloverTimers();
   }
+  if (typeof handleVoidShardTimers === "function") {
+    handleVoidShardTimers();
+  }
   handleStoneTimers();
   if (typeof handlePortalTimers === "function") {
     handlePortalTimers();
   }
   handleStoneSpawns();
+  if (typeof handleVoidShardSpawns === "function") {
+    handleVoidShardSpawns();
+  }
   if (typeof handlePortalSpawns === "function") {
     handlePortalSpawns();
   }
@@ -6610,6 +6790,18 @@ function finalizeMove(gridX, gridY) {
   if (stoneByPos[key]) {
     openStoneModal(key, currentPlayerIndex);
   }
+  if (typeof voidShardByPos !== "undefined" && voidShardByPos[key]) {
+    if (tryAddSpecialArtifactToInventory(currentPlayer, "void-shard")) {
+      updatePlayerResources(currentPlayerIndex);
+      updateInventory(currentPlayerIndex);
+      showLayerAwarePickupToast(currentPlayerIndex, "Осколок пустоты добавлен в инвентарь.");
+      if (typeof clearVoidShard === "function") {
+        clearVoidShard(key);
+      }
+    } else {
+      showLayerAwarePickupToast(currentPlayerIndex, "Нет свободного слота для осколка пустоты.");
+    }
+  }
   if (rainbowByPos[key]) {
     if (tryAddSpecialArtifactToInventory(currentPlayer, "rainbow")) {
       updatePlayerResources(currentPlayerIndex);
@@ -6752,6 +6944,7 @@ function scheduleAutoRoll() {
   if (movesRemaining > 0) return;
   if (isKingAuctionBlockingGameplay()) return;
   if (isKingGenerosityBlockingGameplay()) return;
+  if (isVoidShardModeActive()) return;
   if (rollInfo) {
     rollInfo.innerHTML = 'БРОСОК <span class="dots"><span class="dot"></span><span class="dot"></span><span class="dot"></span></span>';
     rollInfo.classList.add("rolling");
@@ -6768,6 +6961,7 @@ function tryAutoRoll() {
   if (typeof socket !== "undefined" && socket && !isHost) return;
   if (gameEnded) return;
   if (movesRemaining > 0) return;
+  if (isVoidShardModeActive()) return;
   if (hasBlockingTurnModalOpen() || hasDeferredPrivateTurnBlock() || isKingAuctionBlockingGameplay() || isKingGenerosityBlockingGameplay()) return;
   if (processRobberAmbushChance()) return;
   doRoll();
@@ -6920,6 +7114,7 @@ function resetGameState() {
     player.cloverCount = 0;
     player.trollClubCount = 0;
     player.flowerCount = 0;
+    player.voidShardCount = 0;
     player.tokenCount = 0;
     player.bootsCount = 0;
     player.ballistaCount = 0;
@@ -6942,6 +7137,7 @@ function resetGameState() {
   }
   bridgeOpenedKeys.clear();
   bridgeModePlayerIndex = null;
+  voidShardModePlayerIndex = null;
   if (typeof trapStunIdCounter !== "undefined") {
     trapStunIdCounter = 1;
   }
@@ -6993,6 +7189,9 @@ function resetGameState() {
   if (typeof cloverTurnsRemaining !== "undefined") {
     cloverTurnsRemaining = 0;
   }
+  if (typeof voidShardSpawnTurn !== "undefined") {
+    voidShardSpawnTurn = null;
+  }
 
   if (typeof treasure !== "undefined") treasure = null;
   if (typeof flowerArtifact !== "undefined") flowerArtifact = null;
@@ -7012,6 +7211,9 @@ function resetGameState() {
     Object.keys(specialByPos).forEach(key => delete specialByPos[key]);
     Object.keys(stoneByPos).forEach(key => delete stoneByPos[key]);
     Object.keys(rainbowByPos).forEach(key => delete rainbowByPos[key]);
+    if (typeof voidShardByPos !== "undefined") {
+      Object.keys(voidShardByPos).forEach(key => delete voidShardByPos[key]);
+    }
     barbarianCells.length = 0;
     barbarianRespawnTimers.length = 0;
     mercenaries.length = 0;
