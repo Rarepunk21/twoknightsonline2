@@ -180,8 +180,8 @@ const FOG_OF_WAR_MAX_SPAWNS = 3;
 const FOG_OF_WAR_MIN_DURATION = 20;
 const FOG_OF_WAR_MAX_DURATION = 30;
 const FOG_OF_WAR_PLAYER_RADIUS = 4;
-const FOG_OF_WAR_CASTLE_RADIUS = 5;
 const FOG_OF_WAR_ICON_COUNT = 3;
+const FOG_OF_WAR_EVENT_ENABLED = false;
 const HERO_BATTLE_INFLUENCE_LOSS = 50;
 const KING_CONCERN_ROLL_PENALTY = 3;
 const WORLD_EVENTS = {
@@ -699,6 +699,12 @@ function isFullMoonEventActive() {
 }
 
 function initFogOfWarSchedule() {
+  if (!FOG_OF_WAR_EVENT_ENABLED) {
+    scheduledFogOfWarTurns = [];
+    pendingFogOfWarEvents = 0;
+    fogOfWarState = null;
+    return;
+  }
   const picked = new Set();
   const count = randomIntRange(FOG_OF_WAR_MIN_SPAWNS, FOG_OF_WAR_MAX_SPAWNS);
   while (picked.size < count) {
@@ -2270,6 +2276,7 @@ function tryStartPendingFullMoonEvent() {
 }
 
 function tryStartPendingFogOfWarEvent() {
+  if (!FOG_OF_WAR_EVENT_ENABLED) return false;
   if (pendingFogOfWarEvents <= 0) return false;
   if (isFogOfWarActive()) return false;
   pendingFogOfWarEvents -= 1;
@@ -2283,6 +2290,11 @@ function tryStartPendingFogOfWarEvent() {
 }
 
 function activateScheduledFogOfWarEvents() {
+  if (!FOG_OF_WAR_EVENT_ENABLED) {
+    scheduledFogOfWarTurns = [];
+    pendingFogOfWarEvents = 0;
+    return;
+  }
   if (!scheduledFogOfWarTurns.length) return;
   const activating = scheduledFogOfWarTurns.filter(turn => turn === turnCounter);
   if (!activating.length) return;
@@ -2524,8 +2536,11 @@ function getVisibleWorldLayer() {
   return players[viewerIndex]?.layer || WORLD_LAYER_UPPER;
 }
 
-function isWithinVisionRadius(originX, originY, targetX, targetY, radius) {
-  return Math.max(Math.abs(originX - targetX), Math.abs(originY - targetY)) <= radius;
+function isWithinVisionRadius(originX, originY, targetX, targetY, radius, diagonalAllowed = true) {
+  if (diagonalAllowed) {
+    return Math.max(Math.abs(originX - targetX), Math.abs(originY - targetY)) <= radius;
+  }
+  return Math.abs(originX - targetX) + Math.abs(originY - targetY) <= radius;
 }
 
 function getFogOfWarVisibleKeysForPlayer(playerIndex) {
@@ -2536,28 +2551,11 @@ function getFogOfWarVisibleKeysForPlayer(playerIndex) {
   }
   for (let y = 0; y < ROWS; y += 1) {
     for (let x = 0; x < COLS; x += 1) {
-      if (isWithinVisionRadius(player.x, player.y, x, y, FOG_OF_WAR_PLAYER_RADIUS)) {
+      if (isWithinVisionRadius(player.x, player.y, x, y, FOG_OF_WAR_PLAYER_RADIUS, false)) {
         visible.add(`${x},${y}`);
       }
     }
   }
-  Object.keys(castleOwnersByKey).forEach(key => {
-    if (castleOwnersByKey[key] !== playerIndex) return;
-    const [castleX, castleY] = key.split(",").map(Number);
-    const castleCells = [
-      { x: castleX, y: castleY },
-      { x: castleX + 1, y: castleY },
-      { x: castleX, y: castleY + 1 },
-      { x: castleX + 1, y: castleY + 1 }
-    ].filter(cell => cell.x >= 0 && cell.x < COLS && cell.y >= 0 && cell.y < ROWS);
-    for (let y = 0; y < ROWS; y += 1) {
-      for (let x = 0; x < COLS; x += 1) {
-        if (castleCells.some(cell => isWithinVisionRadius(cell.x, cell.y, x, y, FOG_OF_WAR_CASTLE_RADIUS))) {
-          visible.add(`${x},${y}`);
-        }
-      }
-    }
-  });
   return visible;
 }
 
@@ -7988,7 +7986,6 @@ function showReachable() {
   if (movesRemaining <= 0) return;
   const revealCells = shouldRevealReachableCells();
   const currentPlayer = players[currentPlayerIndex];
-  const fogLimited = (currentPlayer?.layer || WORLD_LAYER_UPPER) === WORLD_LAYER_UPPER && isFogOfWarActive();
   if ((currentPlayer?.layer || WORLD_LAYER_UPPER) === WORLD_LAYER_UNDER) {
     const queue = [{x: currentPlayer.x, y: currentPlayer.y, steps: 0}];
     const visited = new Set([`${currentPlayer.x},${currentPlayer.y}`]);
@@ -8046,7 +8043,6 @@ function showReachable() {
       const node = nodeByPos[key];
       if (node && node.id === 15 && player.resources.influence < 500) continue;
       if (isMovementBlockedKey(key)) continue;
-      if (fogLimited && !isUpperWorldKeyVisibleToPlayer(key, currentPlayerIndex)) continue;
       visited.add(key);
       queue.push({x: nx, y: ny, steps: steps + 1});
     }

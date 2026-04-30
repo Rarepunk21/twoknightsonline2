@@ -26,7 +26,8 @@ game.addEventListener("click", e => {
   if (
     (currentPlayer.layer || WORLD_LAYER_UPPER) === WORLD_LAYER_UPPER &&
     typeof isUpperWorldKeyVisibleToPlayer === "function" &&
-    !isUpperWorldKeyVisibleToPlayer(key, currentPlayerIndex)
+    !isUpperWorldKeyVisibleToPlayer(key, currentPlayerIndex) &&
+    !reachableKeys.has(key)
   ) {
     return;
   }
