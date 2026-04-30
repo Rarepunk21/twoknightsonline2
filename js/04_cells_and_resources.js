@@ -142,7 +142,7 @@ function syncBrokenResourceSmoke(cell, enabled) {
 function restoreImportantNodeCell(key, cell) {
   const node = nodeByPos[key];
   if (!node || !cell) return false;
-  cell.classList.remove("inactive", "special", "resource-disabled", "mercenary", "thief", "cutthroat", "messenger", "mage", "portal", "wormhole", "stairs", "flower", "clover", "stone", "rainbow-stone", "void-shard", "master", "troll", "troll-cave", "treasure");
+  cell.classList.remove("inactive", "special", "resource-disabled", "mercenary", "thief", "cutthroat", "messenger", "caravan", "werewolf", "mage", "portal", "wormhole", "stairs", "flower", "clover", "stone", "rainbow-stone", "void-shard", "master", "troll", "troll-cave", "treasure");
   cell.classList.add("important", node.type);
   cell.textContent = node.label || node.id || "";
   clearCellIcon(cell);
@@ -812,7 +812,7 @@ function setCellToInactive(x, y, {skipTreasureCleanup = false} = {}) {
     clearTreasure();
     return;
   }
-  cell.classList.remove("resource", "important", "owned", "reachable", "barbarian", "special", "forest", "resource-disabled", "mercenary", "thief", "cutthroat", "messenger", "mage", "portal", "wormhole", "stairs", "flower", "clover", "stone", "rainbow-stone", "void-shard", "master", "troll", "troll-cave", "treasure");
+  cell.classList.remove("resource", "important", "owned", "reachable", "barbarian", "special", "forest", "resource-disabled", "mercenary", "thief", "cutthroat", "messenger", "caravan", "werewolf", "mage", "portal", "wormhole", "stairs", "flower", "clover", "stone", "rainbow-stone", "void-shard", "master", "troll", "troll-cave", "treasure");
   cell.classList.add("inactive");
   cell.textContent = "";
   clearCellIcon(cell);

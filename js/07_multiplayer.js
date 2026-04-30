@@ -363,12 +363,20 @@ function buildState() {
     cutthroatIdCounter,
     messengers: shallowClone(messengers),
     messengerIdCounter,
+    caravans: shallowClone(caravans),
+    caravanIdCounter,
+    werewolfState: shallowClone(werewolfState),
     trapStunFields: shallowClone(trapStunFields),
     trapStunIdCounter,
     bridgeOpenedKeys: Array.from(bridgeOpenedKeys),
     scheduledWorldEvents: typeof cloneWorldEventSchedule === "function" ? cloneWorldEventSchedule() : [],
     scheduledRoyalMessengerTurns: typeof scheduledRoyalMessengerTurns !== "undefined" ? shallowClone(scheduledRoyalMessengerTurns) : [],
     pendingRoyalMessengerEvents: typeof pendingRoyalMessengerEvents === "number" ? pendingRoyalMessengerEvents : 0,
+    scheduledCaravanTurns: typeof scheduledCaravanTurns !== "undefined" ? shallowClone(scheduledCaravanTurns) : [],
+    pendingCaravanEvents: typeof pendingCaravanEvents === "number" ? pendingCaravanEvents : 0,
+    scheduledFullMoonTurns: typeof scheduledFullMoonTurns !== "undefined" ? shallowClone(scheduledFullMoonTurns) : [],
+    pendingFullMoonEvents: typeof pendingFullMoonEvents === "number" ? pendingFullMoonEvents : 0,
+    fullMoonEventState: shallowClone(fullMoonEventState),
     activeWorldEvents: typeof cloneActiveWorldEvents === "function" ? cloneActiveWorldEvents() : {},
     kingAuctionState: typeof cloneKingAuctionState === "function" ? cloneKingAuctionState() : null,
     kingGenerosityState: typeof cloneKingGenerosityState === "function" ? cloneKingGenerosityState() : null,
@@ -437,6 +445,8 @@ function resetDynamicCells() {
   thieves.length = 0;
   cutthroats.length = 0;
   messengers.length = 0;
+  caravans.length = 0;
+  werewolfState = null;
   treasure = null;
   flowerArtifact = null;
   cloverArtifact = null;
@@ -628,6 +638,15 @@ function applyMessenger(entry) {
   setCellToMessenger(entry.x, entry.y);
 }
 
+function applyCaravan(entry) {
+  setCellToCaravan(entry.x, entry.y);
+}
+
+function applyWerewolf(entry) {
+  if (!entry) return;
+  setCellToWerewolf(entry.x, entry.y);
+}
+
 function applyCastleOwnershipVisuals() {
   Object.entries(nodeByPos || {}).forEach(([key, node]) => {
     if (!node || node.type !== "castle" || !node.elem) return;
@@ -702,6 +721,23 @@ function applyState(state) {
       ? Math.max(0, Math.floor(state.pendingRoyalMessengerEvents))
       : pendingRoyalMessengerEvents;
   }
+  if (Array.isArray(state.scheduledCaravanTurns)) {
+    scheduledCaravanTurns = state.scheduledCaravanTurns.slice();
+  }
+  if (typeof pendingCaravanEvents !== "undefined") {
+    pendingCaravanEvents = Number.isFinite(state.pendingCaravanEvents)
+      ? Math.max(0, Math.floor(state.pendingCaravanEvents))
+      : pendingCaravanEvents;
+  }
+  if (Array.isArray(state.scheduledFullMoonTurns)) {
+    scheduledFullMoonTurns = state.scheduledFullMoonTurns.slice();
+  }
+  if (typeof pendingFullMoonEvents !== "undefined") {
+    pendingFullMoonEvents = Number.isFinite(state.pendingFullMoonEvents)
+      ? Math.max(0, Math.floor(state.pendingFullMoonEvents))
+      : pendingFullMoonEvents;
+  }
+  fullMoonEventState = state.fullMoonEventState ? { ...state.fullMoonEventState } : null;
   if (state.activeWorldEvents && typeof state.activeWorldEvents === "object") {
     activeWorldEvents = Object.fromEntries(
       Object.entries(state.activeWorldEvents).map(([key, value]) => [key, { ...value }])
@@ -811,6 +847,18 @@ function applyState(state) {
     messengers.push(entry);
   });
   messengerIdCounter = state.messengerIdCounter ?? messengerIdCounter;
+
+  caravans.length = 0;
+  (state.caravans || []).forEach(entry => {
+    applyCaravan(entry);
+    caravans.push(entry);
+  });
+  caravanIdCounter = state.caravanIdCounter ?? caravanIdCounter;
+
+  werewolfState = state.werewolfState ? { ...state.werewolfState } : null;
+  if (werewolfState) {
+    applyWerewolf(werewolfState);
+  }
 
   if (typeof trapStunFields !== "undefined") {
     trapStunFields.length = 0;

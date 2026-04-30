@@ -151,6 +151,28 @@ const ROYAL_MESSENGER_SUCCESS_INFLUENCE_REWARD = 150;
 const ROYAL_MESSENGER_RETURN_GOLD_FINE = 500;
 const ROYAL_MESSENGER_SPEED_MIN = 3;
 const ROYAL_MESSENGER_SPEED_MAX = 4;
+const CARAVAN_MIN_TURN = 15;
+const CARAVAN_MAX_TURN = 350;
+const CARAVAN_MIN_SPAWNS = 1;
+const CARAVAN_MAX_SPAWNS = 3;
+const CARAVAN_GOLD_MIN = 350;
+const CARAVAN_GOLD_MAX = 1000;
+const CARAVAN_SPEED_MIN = 4;
+const CARAVAN_SPEED_MAX = 6;
+const CARAVAN_SUCCESS_INFLUENCE_REWARD = 50;
+const CARAVAN_EMPTY_INFLUENCE_LOSS = 100;
+const FULL_MOON_MIN_TURN = 15;
+const FULL_MOON_MAX_TURN = 350;
+const FULL_MOON_MAX_SPAWNS = 2;
+const FULL_MOON_MIN_DURATION = 15;
+const FULL_MOON_MAX_DURATION = 25;
+const WEREWOLF_SPEED_MIN = 6;
+const WEREWOLF_SPEED_MAX = 9;
+const WEREWOLF_ATTACK_MIN = 20;
+const WEREWOLF_ATTACK_MAX = 35;
+const WEREWOLF_MAX_HEALTH = 75;
+const WEREWOLF_RETARGET_INTERVAL = 3;
+const WEREWOLF_FORCED_TARGET_TURNS = 5;
 const HERO_BATTLE_INFLUENCE_LOSS = 50;
 const KING_CONCERN_ROLL_PENALTY = 3;
 const WORLD_EVENTS = {
@@ -255,6 +277,11 @@ let activeWorldEvents = {};
 let worldEventModalQueue = [];
 let scheduledRoyalMessengerTurns = [];
 let pendingRoyalMessengerEvents = 0;
+let scheduledCaravanTurns = [];
+let pendingCaravanEvents = 0;
+let scheduledFullMoonTurns = [];
+let pendingFullMoonEvents = 0;
+let fullMoonEventState = null;
 let kingAuctionState = normalizeKingAuctionState();
 let kingAuctionViewerPlayerIndex = null;
 const kingAuctionDraftBids = players.map(() => "");
@@ -263,6 +290,9 @@ let kingGenerosityViewerPlayerIndex = null;
 const messengers = [];
 let messengerIdCounter = 1;
 let pendingMessengerInteraction = null;
+const caravans = [];
+let caravanIdCounter = 1;
+let werewolfState = null;
 const ROYAL_MESSENGER_EVENT_TITLE = "Королевский указ";
 const ROYAL_MESSENGER_EVENT_TEXT = "Король отправил гонцов в ваши замки, чтобы собрать налог 500 золотых монет. Проследите, чтобы монеты дошли до казны!";
 const ROYAL_MESSENGER_SPAWN_KEYS = guardNode
@@ -271,6 +301,11 @@ const ROYAL_MESSENGER_SPAWN_KEYS = guardNode
       `${guardNode.x - 1},${guardNode.y}`
     ]
   : [];
+const CARAVAN_EVENT_TITLE = "Событие";
+const CARAVAN_EVENT_TEXT = "В королевстве проезжает караван!";
+const CARAVAN_START_KEY = "0,0";
+const FULL_MOON_EVENT_TITLE = "Событие";
+const FULL_MOON_EVENT_TEXT = "Сегодня полнолуние, будьте осторожны! В королевстве водятся оборотни...";
 
 const KING_GENEROSITY_GIFTS = [
   {
@@ -620,6 +655,32 @@ function initRoyalMessengerSchedule() {
 
 function isRoyalMessengerEventActive() {
   return messengers.length > 0;
+}
+
+function initCaravanSchedule() {
+  const picked = new Set();
+  const count = randomIntRange(CARAVAN_MIN_SPAWNS, CARAVAN_MAX_SPAWNS);
+  while (picked.size < count) {
+    picked.add(randomIntRange(CARAVAN_MIN_TURN, CARAVAN_MAX_TURN));
+  }
+  scheduledCaravanTurns = Array.from(picked).sort((a, b) => a - b);
+}
+
+function isCaravanEventActive() {
+  return caravans.length > 0;
+}
+
+function initFullMoonSchedule() {
+  const picked = new Set();
+  const count = randomIntRange(0, FULL_MOON_MAX_SPAWNS);
+  while (picked.size < count) {
+    picked.add(randomIntRange(FULL_MOON_MIN_TURN, FULL_MOON_MAX_TURN));
+  }
+  scheduledFullMoonTurns = Array.from(picked).sort((a, b) => a - b);
+}
+
+function isFullMoonEventActive() {
+  return Boolean(werewolfState || fullMoonEventState);
 }
 
 function initWorldEventSchedule() {
@@ -1185,6 +1246,14 @@ function announceRoyalMessengerEvent() {
   announceWorldEventModalToAll(ROYAL_MESSENGER_EVENT_TITLE, ROYAL_MESSENGER_EVENT_TEXT);
 }
 
+function announceCaravanEvent() {
+  announceWorldEventModalToAll(CARAVAN_EVENT_TITLE, CARAVAN_EVENT_TEXT);
+}
+
+function announceFullMoonEvent() {
+  announceWorldEventModalToAll(FULL_MOON_EVENT_TITLE, FULL_MOON_EVENT_TEXT);
+}
+
 function announceWorldEventModalToAll(title, text) {
   const payload = { title, text };
   const inMultiplayer =
@@ -1672,6 +1741,620 @@ function fillMessengerWithGold(playerIndex, messengerId) {
   return true;
 }
 
+function getCaravanById(id) {
+  return caravans.find(entry => entry.id === id) || null;
+}
+
+function getCaravanAtKey(key) {
+  return caravans.find(entry => entry.key === key) || null;
+}
+
+function setCellToCaravan(x, y) {
+  const key = `${x},${y}`;
+  const cell = grid[key];
+  if (!cell) return false;
+  cell.classList.remove("inactive");
+  cell.classList.add("important", "caravan");
+  cell.textContent = "";
+  setCellIcon(cell, "caravan.png", "Караван");
+  return true;
+}
+
+function clearCaravanCell(x, y) {
+  const key = `${x},${y}`;
+  const cell = grid[key];
+  if (!cell) return;
+  const node = nodeByPos[key];
+  if (node) {
+    restoreImportantNodeCell(key, cell);
+    return;
+  }
+  setCellToInactive(x, y);
+}
+
+function removeCaravanAtIndex(index) {
+  const caravan = caravans[index];
+  if (!caravan) return;
+  clearCaravanCell(caravan.x, caravan.y);
+  caravans.splice(index, 1);
+}
+
+function isCaravanSpawnAvailable() {
+  const cell = grid[CARAVAN_START_KEY];
+  return Boolean(cell) && cell.classList.contains("inactive") && !caravans.some(entry => entry.key === CARAVAN_START_KEY);
+}
+
+function isCaravanStepAllowed(nx, ny, targetKey) {
+  const key = `${nx},${ny}`;
+  if (blockedCellKeys.has(key)) return false;
+  if (key === targetKey) return true;
+  const cell = grid[key];
+  if (!cell || !cell.classList.contains("inactive")) return false;
+  if (resourceByPos[key]) return false;
+  if (specialByPos[key]) return false;
+  if (barbarianCells.some(entry => entry.key === key)) return false;
+  if (mercenaries.some(entry => entry.key === key)) return false;
+  if (thieves.some(entry => entry.key === key)) return false;
+  if (cutthroats.some(entry => entry.key === key)) return false;
+  if (messengers.some(entry => entry.key === key)) return false;
+  if (caravans.some(entry => entry.key === key)) return false;
+  if (players.some(player => player.x === nx && player.y === ny)) return false;
+  if (treasure?.key === key) return false;
+  if (flowerArtifact?.key === key) return false;
+  if (cloverArtifact?.key === key) return false;
+  if (stoneByPos[key]) return false;
+  if (rainbowByPos[key]) return false;
+  if (typeof voidShardByPos !== "undefined" && voidShardByPos[key]) return false;
+  if (typeof trollState !== "undefined" && trollState?.active && trollState.key === key) return false;
+  return true;
+}
+
+function findCaravanPath(startKey, targetKey, maxDepth = 120) {
+  const [sx, sy] = startKey.split(",").map(Number);
+  const queue = [{ x: sx, y: sy }];
+  const prev = new Map();
+  const startId = `${sx},${sy}`;
+  prev.set(startId, null);
+  const dirs = [
+    { dx: 1, dy: 0 },
+    { dx: -1, dy: 0 },
+    { dx: 0, dy: 1 },
+    { dx: 0, dy: -1 }
+  ];
+  let depth = 0;
+  while (queue.length && depth <= maxDepth) {
+    const nextQueue = [];
+    for (const node of queue) {
+      const key = `${node.x},${node.y}`;
+      if (key === targetKey) {
+        const path = [];
+        let cur = key;
+        while (cur && cur !== startId) {
+          path.push(cur);
+          cur = prev.get(cur);
+        }
+        path.reverse();
+        return path;
+      }
+      for (const { dx, dy } of dirs) {
+        const nx = node.x + dx;
+        const ny = node.y + dy;
+        if (nx < 0 || nx >= COLS || ny < 0 || ny >= ROWS) continue;
+        const nkey = `${nx},${ny}`;
+        if (prev.has(nkey)) continue;
+        if (!isCaravanStepAllowed(nx, ny, targetKey)) continue;
+        prev.set(nkey, key);
+        nextQueue.push({ x: nx, y: ny });
+      }
+    }
+    queue.splice(0, queue.length, ...nextQueue);
+    depth += 1;
+  }
+  return null;
+}
+
+function moveCaravan(caravan) {
+  if (!caravan?.targetKey || caravan.key === caravan.targetKey) return;
+  const path = findCaravanPath(caravan.key, caravan.targetKey, 160);
+  if (!path || !path.length) return;
+  const steps = Math.min(randomIntRange(CARAVAN_SPEED_MIN, CARAVAN_SPEED_MAX), path.length);
+  clearCaravanCell(caravan.x, caravan.y);
+  for (let i = 0; i < steps; i += 1) {
+    const [nx, ny] = path[i].split(",").map(Number);
+    caravan.x = nx;
+    caravan.y = ny;
+    caravan.key = `${nx},${ny}`;
+    if (caravan.key === caravan.targetKey) break;
+  }
+}
+
+function resolveCaravanArrival(caravan) {
+  if ((caravan.cargoGold || 0) > 0) {
+    players.forEach((player, playerIndex) => {
+      if (!player) return;
+      player.resources.influence += CARAVAN_SUCCESS_INFLUENCE_REWARD;
+      updatePlayerResources(playerIndex);
+      showPrivatePickupToastForPlayer(
+        playerIndex,
+        `Караван добрался до стражи с золотом. Вы получаете ${CARAVAN_SUCCESS_INFLUENCE_REWARD} влияния.`
+      );
+    });
+    return;
+  }
+  if (!Number.isInteger(caravan.robbedByPlayerIndex) || !players[caravan.robbedByPlayerIndex]) {
+    return;
+  }
+  const robber = players[caravan.robbedByPlayerIndex];
+  robber.resources.influence -= CARAVAN_EMPTY_INFLUENCE_LOSS;
+  updatePlayerResources(caravan.robbedByPlayerIndex);
+  showPrivatePickupToastForPlayer(
+    caravan.robbedByPlayerIndex,
+    `Пустой караван добрался до стражи. Вы теряете ${CARAVAN_EMPTY_INFLUENCE_LOSS} влияния.`
+  );
+}
+
+function tryStartPendingCaravanEvent() {
+  if (pendingCaravanEvents <= 0) return false;
+  if (isCaravanEventActive() || !isCaravanSpawnAvailable()) return false;
+  pendingCaravanEvents -= 1;
+  announceCaravanEvent();
+  const [x, y] = CARAVAN_START_KEY.split(",").map(Number);
+  caravans.push({
+    id: caravanIdCounter++,
+    key: CARAVAN_START_KEY,
+    x,
+    y,
+    targetKey: guardKey,
+    cargoGold: randomIntRange(CARAVAN_GOLD_MIN, CARAVAN_GOLD_MAX),
+    robbedByPlayerIndex: null
+  });
+  setCellToCaravan(x, y);
+  return true;
+}
+
+function advanceCaravans() {
+  for (let i = caravans.length - 1; i >= 0; i -= 1) {
+    const caravan = caravans[i];
+    if (!caravan.targetKey) {
+      removeCaravanAtIndex(i);
+      continue;
+    }
+    moveCaravan(caravan);
+    if (caravan.key === caravan.targetKey) {
+      resolveCaravanArrival(caravan);
+      removeCaravanAtIndex(i);
+      continue;
+    }
+    setCellToCaravan(caravan.x, caravan.y);
+  }
+  if (!isCaravanEventActive()) {
+    tryStartPendingCaravanEvent();
+  }
+}
+
+function activateScheduledCaravanEvents() {
+  if (!scheduledCaravanTurns.length) return;
+  const activating = scheduledCaravanTurns.filter(turn => turn === turnCounter);
+  if (!activating.length) return;
+  scheduledCaravanTurns = scheduledCaravanTurns.filter(turn => turn !== turnCounter);
+  activating.forEach(() => {
+    pendingCaravanEvents += 1;
+  });
+  tryStartPendingCaravanEvent();
+}
+
+function robCaravan(playerIndex, caravan) {
+  const attacker = players[playerIndex];
+  if (!attacker || !caravan) return false;
+  const stolenGold = Math.max(0, caravan.cargoGold || 0);
+  attacker.x = caravan.x;
+  attacker.y = caravan.y;
+  movesRemaining = 0;
+  clearReachable();
+  updatePawns();
+  if (stolenGold > 0) {
+    attacker.pocket.gold += stolenGold;
+    caravan.cargoGold = 0;
+    caravan.robbedByPlayerIndex = playerIndex;
+    updatePlayerResources(playerIndex);
+    showPrivateWorldEventModalForPlayer(playerIndex, "Грабёж каравана", `Вы забрали ${stolenGold} золота.`);
+  } else {
+    showPrivateWorldEventModalForPlayer(playerIndex, "Грабёж каравана", "Караван пуст.");
+  }
+  endTurn();
+  return true;
+}
+
+function getWerewolfAtKey(key) {
+  return werewolfState && werewolfState.key === key ? werewolfState : null;
+}
+
+function setCellToWerewolf(x, y) {
+  const key = `${x},${y}`;
+  const cell = grid[key];
+  if (!cell) return false;
+  cell.classList.remove("inactive");
+  cell.classList.add("important", "werewolf");
+  cell.textContent = "";
+  setCellIcon(cell, "werewolf.png", "Оборотень");
+  return true;
+}
+
+function clearWerewolfCell(x, y) {
+  const key = `${x},${y}`;
+  const cell = grid[key];
+  if (!cell) return;
+  const node = nodeByPos[key];
+  if (node) {
+    restoreImportantNodeCell(key, cell);
+    return;
+  }
+  setCellToInactive(x, y);
+}
+
+function getFullMoonSpawnEligibleKeys() {
+  const playerPositions = new Set(
+    players
+      .filter(player => (player?.layer || WORLD_LAYER_UPPER) === WORLD_LAYER_UPPER)
+      .map(player => `${player.x},${player.y}`)
+  );
+  return Object.keys(grid).filter(key => {
+    const [x, y] = key.split(",").map(Number);
+    if (nodeByPos[key]) return false;
+    if (resourceByPos[key]) return false;
+    if (specialByPos[key]) return false;
+    if (stoneByPos[key]) return false;
+    if (rainbowByPos[key]) return false;
+    if (typeof voidShardByPos !== "undefined" && voidShardByPos[key]) return false;
+    if (treasure?.key === key) return false;
+    if (flowerArtifact?.key === key) return false;
+    if (cloverArtifact?.key === key) return false;
+    if (playerPositions.has(key)) return false;
+    if (barbarianCells.some(cell => cell.key === key)) return false;
+    if (mercenaries.some(entry => entry.key === key)) return false;
+    if (thieves.some(entry => entry.key === key)) return false;
+    if (cutthroats.some(entry => entry.key === key)) return false;
+    if (messengers.some(entry => entry.key === key)) return false;
+    if (caravans.some(entry => entry.key === key)) return false;
+    if (werewolfState?.key === key) return false;
+    if (typeof trollState !== "undefined" && trollState?.active && trollState.key === key) return false;
+    if (isSpawnBlocked(x, y)) return false;
+    if (blockedCellKeys.has(key)) return false;
+    const cell = grid[key];
+    return Boolean(cell) && cell.classList.contains("inactive");
+  });
+}
+
+function isPlayerProtectedFromWerewolf(playerIndex) {
+  const player = players[playerIndex];
+  if (!player || (player.layer || WORLD_LAYER_UPPER) !== WORLD_LAYER_UPPER) return true;
+  const playerKey = `${player.x},${player.y}`;
+  if (guardKey && playerKey === guardKey) return true;
+  const castleKey = getCastleBaseKeyForPos(player.x, player.y);
+  return Boolean(castleKey && castleOwnersByKey[castleKey] === playerIndex);
+}
+
+function isWerewolfStepAllowed(nx, ny, targetKey) {
+  const key = `${nx},${ny}`;
+  if (blockedCellKeys.has(key)) return false;
+  if (key === targetKey) return true;
+  const cell = grid[key];
+  if (!cell || !cell.classList.contains("inactive")) return false;
+  if (resourceByPos[key]) return false;
+  if (specialByPos[key]) return false;
+  if (barbarianCells.some(entry => entry.key === key)) return false;
+  if (mercenaries.some(entry => entry.key === key)) return false;
+  if (thieves.some(entry => entry.key === key)) return false;
+  if (cutthroats.some(entry => entry.key === key)) return false;
+  if (messengers.some(entry => entry.key === key)) return false;
+  if (caravans.some(entry => entry.key === key)) return false;
+  if (players.some(player => (player.layer || WORLD_LAYER_UPPER) === WORLD_LAYER_UPPER && player.x === nx && player.y === ny)) return false;
+  if (treasure?.key === key) return false;
+  if (flowerArtifact?.key === key) return false;
+  if (cloverArtifact?.key === key) return false;
+  if (stoneByPos[key]) return false;
+  if (rainbowByPos[key]) return false;
+  if (typeof voidShardByPos !== "undefined" && voidShardByPos[key]) return false;
+  if (typeof trollState !== "undefined" && trollState?.active && trollState.key === key) return false;
+  return true;
+}
+
+function isWerewolfApproachCellAvailable(key) {
+  const [x, y] = key.split(",").map(Number);
+  const cell = grid[key];
+  if (!cell || !cell.classList.contains("inactive")) return false;
+  if (blockedCellKeys.has(key)) return false;
+  if (resourceByPos[key]) return false;
+  if (specialByPos[key]) return false;
+  if (barbarianCells.some(entry => entry.key === key)) return false;
+  if (mercenaries.some(entry => entry.key === key)) return false;
+  if (thieves.some(entry => entry.key === key)) return false;
+  if (cutthroats.some(entry => entry.key === key)) return false;
+  if (messengers.some(entry => entry.key === key)) return false;
+  if (caravans.some(entry => entry.key === key)) return false;
+  if (players.some(player => (player.layer || WORLD_LAYER_UPPER) === WORLD_LAYER_UPPER && `${player.x},${player.y}` === key)) return false;
+  if (treasure?.key === key) return false;
+  if (flowerArtifact?.key === key) return false;
+  if (cloverArtifact?.key === key) return false;
+  if (stoneByPos[key]) return false;
+  if (rainbowByPos[key]) return false;
+  if (typeof voidShardByPos !== "undefined" && voidShardByPos[key]) return false;
+  if (typeof trollState !== "undefined" && trollState?.active && trollState.key === key) return false;
+  return true;
+}
+
+function findWerewolfPath(startKey, targetKey, maxDepth = 160) {
+  const [sx, sy] = startKey.split(",").map(Number);
+  const queue = [{ x: sx, y: sy }];
+  const prev = new Map();
+  const startId = `${sx},${sy}`;
+  prev.set(startId, null);
+  const dirs = [
+    { dx: 1, dy: 0 },
+    { dx: -1, dy: 0 },
+    { dx: 0, dy: 1 },
+    { dx: 0, dy: -1 }
+  ];
+  let depth = 0;
+  while (queue.length && depth <= maxDepth) {
+    const nextQueue = [];
+    for (const node of queue) {
+      const key = `${node.x},${node.y}`;
+      if (key === targetKey) {
+        const path = [];
+        let cur = key;
+        while (cur && cur !== startId) {
+          path.push(cur);
+          cur = prev.get(cur);
+        }
+        path.reverse();
+        return path;
+      }
+      for (const { dx, dy } of dirs) {
+        const nx = node.x + dx;
+        const ny = node.y + dy;
+        if (nx < 0 || nx >= COLS || ny < 0 || ny >= ROWS) continue;
+        const nkey = `${nx},${ny}`;
+        if (prev.has(nkey)) continue;
+        if (!isWerewolfStepAllowed(nx, ny, targetKey)) continue;
+        prev.set(nkey, key);
+        nextQueue.push({ x: nx, y: ny });
+      }
+    }
+    queue.splice(0, queue.length, ...nextQueue);
+    depth += 1;
+  }
+  return null;
+}
+
+function chooseRandomWerewolfTarget(excludedPlayerIndex = null) {
+  const available = players
+    .map((player, playerIndex) => ({ player, playerIndex }))
+    .filter(({ player, playerIndex }) => player && playerIndex !== excludedPlayerIndex && (player.layer || WORLD_LAYER_UPPER) === WORLD_LAYER_UPPER)
+    .map(({ playerIndex }) => playerIndex);
+  if (!available.length) return null;
+  return available[Math.floor(Math.random() * available.length)];
+}
+
+function getWerewolfApproachKey(playerIndex) {
+  const player = players[playerIndex];
+  if (!player || (player.layer || WORLD_LAYER_UPPER) !== WORLD_LAYER_UPPER) return null;
+  if (!isPlayerProtectedFromWerewolf(playerIndex)) {
+    return `${player.x},${player.y}`;
+  }
+  const candidates = [
+    { x: player.x + 1, y: player.y },
+    { x: player.x - 1, y: player.y },
+    { x: player.x, y: player.y + 1 },
+    { x: player.x, y: player.y - 1 }
+  ]
+    .filter(({ x, y }) => x >= 0 && x < COLS && y >= 0 && y < ROWS)
+    .map(({ x, y }) => `${x},${y}`)
+    .filter(key => {
+      const [x, y] = key.split(",").map(Number);
+      if (werewolfState && werewolfState.key === key) return true;
+      return isWerewolfApproachCellAvailable(`${x},${y}`);
+    })
+    .sort((left, right) => {
+      if (!werewolfState) return 0;
+      const [lx, ly] = left.split(",").map(Number);
+      const [rx, ry] = right.split(",").map(Number);
+      const leftDist = Math.abs(lx - werewolfState.x) + Math.abs(ly - werewolfState.y);
+      const rightDist = Math.abs(rx - werewolfState.x) + Math.abs(ry - werewolfState.y);
+      return leftDist - rightDist;
+    });
+  return candidates[0] || null;
+}
+
+function pickWerewolfTarget(werewolf) {
+  if (!werewolf) return;
+  if (werewolf.forcedTargetTurnsRemaining > 0 && Number.isInteger(werewolf.forcedTargetPlayerIndex) && players[werewolf.forcedTargetPlayerIndex]) {
+    werewolf.targetPlayerIndex = werewolf.forcedTargetPlayerIndex;
+    return;
+  }
+  if (!Number.isInteger(werewolf.targetPlayerIndex) || werewolf.retargetTurnsRemaining <= 0 || !players[werewolf.targetPlayerIndex]) {
+    werewolf.targetPlayerIndex = chooseRandomWerewolfTarget();
+    werewolf.retargetTurnsRemaining = WEREWOLF_RETARGET_INTERVAL;
+  }
+}
+
+function advanceWerewolfTargetTimers(werewolf) {
+  if (!werewolf) return;
+  if (werewolf.forcedTargetTurnsRemaining > 0) {
+    werewolf.forcedTargetTurnsRemaining = Math.max(0, werewolf.forcedTargetTurnsRemaining - 1);
+    if (werewolf.forcedTargetTurnsRemaining <= 0) {
+      werewolf.forcedTargetPlayerIndex = null;
+      werewolf.targetPlayerIndex = null;
+      werewolf.retargetTurnsRemaining = 0;
+    }
+    return;
+  }
+  if (werewolf.retargetTurnsRemaining > 0) {
+    werewolf.retargetTurnsRemaining = Math.max(0, werewolf.retargetTurnsRemaining - 1);
+  }
+}
+
+function endFullMoonEvent() {
+  if (werewolfState) {
+    clearWerewolfCell(werewolfState.x, werewolfState.y);
+  }
+  werewolfState = null;
+  fullMoonEventState = null;
+}
+
+function tryStartPendingFullMoonEvent() {
+  if (pendingFullMoonEvents <= 0) return false;
+  if (isFullMoonEventActive()) return false;
+  const eligibleKeys = getFullMoonSpawnEligibleKeys();
+  if (!eligibleKeys.length) return false;
+  pendingFullMoonEvents -= 1;
+  announceFullMoonEvent();
+  const key = eligibleKeys[Math.floor(Math.random() * eligibleKeys.length)];
+  const [x, y] = key.split(",").map(Number);
+  const duration = randomIntRange(FULL_MOON_MIN_DURATION, FULL_MOON_MAX_DURATION);
+  werewolfState = {
+    key,
+    x,
+    y,
+    health: WEREWOLF_MAX_HEALTH,
+    targetPlayerIndex: null,
+    retargetTurnsRemaining: 0,
+    forcedTargetPlayerIndex: null,
+    forcedTargetTurnsRemaining: 0
+  };
+  fullMoonEventState = {
+    duration,
+    expiresAtTurn: turnCounter + duration - 1
+  };
+  setCellToWerewolf(x, y);
+  return true;
+}
+
+function activateScheduledFullMoonEvents() {
+  if (!scheduledFullMoonTurns.length) return;
+  const activating = scheduledFullMoonTurns.filter(turn => turn === turnCounter);
+  if (!activating.length) return;
+  scheduledFullMoonTurns = scheduledFullMoonTurns.filter(turn => turn !== turnCounter);
+  activating.forEach(() => {
+    pendingFullMoonEvents += 1;
+  });
+  tryStartPendingFullMoonEvent();
+}
+
+function buildWerewolfBattleResult(playerIndex, options = {}) {
+  const player = players[playerIndex];
+  const werewolf = werewolfState;
+  if (!player || !werewolf) return null;
+  const initialHealth = Math.max(0, Number(werewolf.health) || 0);
+  const initialArmy = Math.max(0, player.pocket.army || 0);
+  const werewolfDamage = randomIntRange(WEREWOLF_ATTACK_MIN, WEREWOLF_ATTACK_MAX);
+  const playerArmyLost = Math.min(initialArmy, werewolfDamage);
+  player.pocket.army = Math.max(0, initialArmy - playerArmyLost);
+  const playerAttackDamage = Math.max(0, player.attack || 0);
+  werewolf.health = Math.max(0, werewolf.health - playerAttackDamage);
+  let playerArmyDamage = 0;
+  if (werewolf.health > 0) {
+    playerArmyDamage = Math.min(werewolf.health, Math.max(0, player.pocket.army || 0));
+    werewolf.health = Math.max(0, werewolf.health - playerArmyDamage);
+  }
+  updatePlayerResources(playerIndex);
+  return {
+    type: "werewolf",
+    defenderIndex: playerIndex,
+    playerIndex,
+    playerName: player.name || `Игрок ${playerIndex + 1}`,
+    playerArmyBefore: initialArmy,
+    playerArmyLost,
+    playerArmyAfter: Math.max(0, player.pocket.army || 0),
+    werewolfHealthBefore: initialHealth,
+    werewolfHealthAfter: Math.max(0, werewolf.health || 0),
+    werewolfDamage,
+    playerAttackDamage,
+    playerArmyDamage,
+    initiatedByWerewolf: Boolean(options.initiatedByWerewolf)
+  };
+}
+
+function updateWerewolfTargetAfterAttack(attackedPlayerIndex) {
+  if (!werewolfState || werewolfState.health <= 0) return;
+  const nextTarget = chooseRandomWerewolfTarget(attackedPlayerIndex);
+  werewolfState.forcedTargetPlayerIndex = nextTarget;
+  werewolfState.forcedTargetTurnsRemaining = nextTarget === null ? 0 : WEREWOLF_FORCED_TARGET_TURNS;
+  werewolfState.targetPlayerIndex = nextTarget;
+  werewolfState.retargetTurnsRemaining = WEREWOLF_RETARGET_INTERVAL;
+  werewolfState.skipTargetTimerTick = true;
+}
+
+function finalizeWerewolfBattle(playerIndex, options = {}) {
+  const result = buildWerewolfBattleResult(playerIndex, options);
+  if (!result) return null;
+  if (werewolfState && werewolfState.health <= 0) {
+    endFullMoonEvent();
+    tryStartPendingFullMoonEvent();
+    return result;
+  }
+  if (options.initiatedByWerewolf) {
+    updateWerewolfTargetAfterAttack(playerIndex);
+  }
+  return result;
+}
+
+function moveWerewolfTowardTarget() {
+  const werewolf = werewolfState;
+  if (!werewolf) return null;
+  pickWerewolfTarget(werewolf);
+  if (!Number.isInteger(werewolf.targetPlayerIndex)) return null;
+  const targetPlayer = players[werewolf.targetPlayerIndex];
+  if (!targetPlayer || (targetPlayer.layer || WORLD_LAYER_UPPER) !== WORLD_LAYER_UPPER) return null;
+  const targetKey = getWerewolfApproachKey(werewolf.targetPlayerIndex);
+  if (!targetKey) return null;
+  const path = findWerewolfPath(werewolf.key, targetKey, 180);
+  if (!path || !path.length) return null;
+  const steps = Math.min(randomIntRange(WEREWOLF_SPEED_MIN, WEREWOLF_SPEED_MAX), path.length);
+  clearWerewolfCell(werewolf.x, werewolf.y);
+  for (let i = 0; i < steps; i += 1) {
+    const [nx, ny] = path[i].split(",").map(Number);
+    werewolf.x = nx;
+    werewolf.y = ny;
+    werewolf.key = `${nx},${ny}`;
+    if (werewolf.key === targetKey) break;
+  }
+  return targetPlayer;
+}
+
+function advanceWerewolf() {
+  if (!werewolfState) {
+    tryStartPendingFullMoonEvent();
+    return;
+  }
+  const targetPlayer = moveWerewolfTowardTarget();
+  let battleResult = null;
+  if (werewolfState && targetPlayer) {
+    const targetKey = `${targetPlayer.x},${targetPlayer.y}`;
+    const targetIsReachable = !isPlayerProtectedFromWerewolf(werewolfState.targetPlayerIndex);
+    if (targetIsReachable && werewolfState.key === targetKey) {
+      battleResult = finalizeWerewolfBattle(werewolfState.targetPlayerIndex, { initiatedByWerewolf: true });
+      if (battleResult) {
+        showBattleModal(battleResult);
+      }
+    }
+  }
+  if (werewolfState) {
+    setCellToWerewolf(werewolfState.x, werewolfState.y);
+    if (werewolfState.skipTargetTimerTick) {
+      werewolfState.skipTargetTimerTick = false;
+    } else {
+      advanceWerewolfTargetTimers(werewolfState);
+    }
+    if (fullMoonEventState && turnCounter >= fullMoonEventState.expiresAtTurn) {
+      endFullMoonEvent();
+    }
+  }
+  if (!werewolfState) {
+    tryStartPendingFullMoonEvent();
+  }
+}
+
 function tickWorldEvents() {
   let shouldSyncBarbarianStrengths = false;
   Object.keys(activeWorldEvents).forEach(eventKey => {
@@ -1872,7 +2555,7 @@ function resetCellForVisibleRender(key) {
   if (!cell) return;
   cell.classList.remove(
     "resource", "important", "owned", "reachable", "barbarian", "special", "forest",
-    "resource-disabled", "mercenary", "thief", "cutthroat", "messenger", "mage", "portal", "wormhole",
+    "resource-disabled", "mercenary", "thief", "cutthroat", "messenger", "caravan", "werewolf", "mage", "portal", "wormhole",
     "stairs", "flower", "clover", "stone", "rainbow-stone", "void-shard", "master", "troll", "troll-cave", "treasure"
   );
   cell.classList.add("inactive");
@@ -2043,6 +2726,10 @@ function renderUpperWorldView() {
   thieves.forEach(entry => setCellToThief(entry.x, entry.y));
   cutthroats.forEach(entry => setCellToCutthroat(entry.x, entry.y));
   messengers.forEach(entry => setCellToMessenger(entry.x, entry.y));
+  caravans.forEach(entry => setCellToCaravan(entry.x, entry.y));
+  if (werewolfState) {
+    setCellToWerewolf(werewolfState.x, werewolfState.y);
+  }
   if (typeof updateTrollVisual === "function") {
     trollState.prevKey = null;
     updateTrollVisual();
@@ -6255,6 +6942,18 @@ function buildBattleSummaryLines(result) {
         `Победитель : ${result.winnerName}`
       ].filter(Boolean);
     }
+    if (result.type === "werewolf") {
+      return [
+        `<strong>${result.initiatedByWerewolf ? "НАПАДЕНИЕ ОБОРОТНЯ" : "БОЙ С ОБОРОТНЕМ"}</strong>`,
+        `${result.playerName}: Потерял ${result.playerArmyLost} войск`,
+        `Оборотень нанёс ${result.werewolfDamage} урона по войскам`,
+        `Атака героя: -${result.playerAttackDamage} здоровья оборотня`,
+        `Войска героя: -${result.playerArmyDamage} здоровья оборотня`,
+        `Здоровье оборотня: было ${result.werewolfHealthBefore}, осталось ${result.werewolfHealthAfter}`,
+        `Войск в кармане осталось: ${result.playerArmyAfter}`,
+        result.werewolfHealthAfter <= 0 ? "Оборотень погиб." : "Оборотень выжил и продолжает охоту."
+      ].filter(Boolean);
+    }
     const lines = [];
     if (result.defenderAutoKilled > 0) {
       lines.push(`Обороняющийся сразу убил ${result.defenderAutoKilled} войск.`);
@@ -6329,7 +7028,7 @@ function showBattleModal(result, force = false) {
     }
   });
 
-if (gameOverClose) {
+  if (gameOverClose) {
   gameOverClose.addEventListener("click", hideGameOver);
 }
 if (gameOverModal) {
@@ -6953,6 +7652,8 @@ function completeTurnAdvance() {
   tickWorldEvents();
   activateScheduledWorldEvents();
   activateScheduledRoyalMessengerEvents();
+  activateScheduledCaravanEvents();
+  activateScheduledFullMoonEvents();
   handleMageCellTimers();
   if (turnCounter === 150 && !worldDangerShown) {
     showWorldDangerModal();
@@ -6982,6 +7683,8 @@ function completeTurnAdvance() {
   advanceThieves();
   advanceCutthroats();
   advanceMessengers();
+  advanceCaravans();
+  advanceWerewolf();
   movesRemaining = 0;
   lastRoll = null;
   lastRollText = "-";
@@ -7706,6 +8409,11 @@ function resetGameState() {
   scheduledWorldEvents = [];
   scheduledRoyalMessengerTurns = [];
   pendingRoyalMessengerEvents = 0;
+  scheduledCaravanTurns = [];
+  pendingCaravanEvents = 0;
+  scheduledFullMoonTurns = [];
+  pendingFullMoonEvents = 0;
+  fullMoonEventState = null;
   activeWorldEvents = {};
   worldEventModalQueue = [];
   closeWorldEventModal();
@@ -7858,10 +8566,14 @@ function resetGameState() {
     thieves.length = 0;
     cutthroats.length = 0;
     messengers.length = 0;
+    caravans.length = 0;
+    werewolfState = null;
   }
   thieves.length = 0;
   cutthroats.length = 0;
   messengers.length = 0;
+  caravans.length = 0;
+  werewolfState = null;
   cutthroatIdCounter = 1;
 
   Object.keys(castleOwnersByKey).forEach(key => {
@@ -7885,6 +8597,7 @@ function resetGameState() {
   mercenaryIdCounter = 1;
   thiefIdCounter = 1;
   messengerIdCounter = 1;
+  caravanIdCounter = 1;
   barbarianPhaseStarted = false;
   robberEvent = null;
 
@@ -7895,6 +8608,8 @@ function resetGameState() {
   if (typeof initPortalState === "function") initPortalState();
   initWorldEventSchedule();
   initRoyalMessengerSchedule();
+  initCaravanSchedule();
+  initFullMoonSchedule();
   initWormholeSpawns();
 
   if (typeof mageSlot !== "undefined") {
@@ -7981,6 +8696,8 @@ function relayout() {
 applyCellSize(BASE_CELL);
 initWorldEventSchedule();
 initRoyalMessengerSchedule();
+initCaravanSchedule();
+initFullMoonSchedule();
 initWormholeSpawns();
 relayout();
 refreshVisibleWorld();

@@ -91,6 +91,25 @@ game.addEventListener("click", e => {
     finalizeMove(gridX, gridY);
     return;
   }
+  const werewolfTarget = getWerewolfAtKey(key);
+  if (werewolfTarget) {
+    clearReachable();
+    currentPlayer.x = gridX;
+    currentPlayer.y = gridY;
+    movesRemaining = 0;
+    updatePawns();
+    const battleResult = finalizeWerewolfBattle(currentPlayerIndex, { initiatedByWerewolf: false });
+    if (battleResult) {
+      showBattleModal(battleResult);
+    }
+    endTurn();
+    return;
+  }
+  const caravanTarget = getCaravanAtKey(key);
+  if (caravanTarget) {
+    robCaravan(currentPlayerIndex, caravanTarget);
+    return;
+  }
   const messengerTarget = getMessengerAtKey(key);
   if (messengerTarget) {
     if (messengerTarget.targetPlayerIndex === currentPlayerIndex) {
