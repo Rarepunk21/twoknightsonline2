@@ -377,6 +377,9 @@ function buildState() {
     scheduledFullMoonTurns: typeof scheduledFullMoonTurns !== "undefined" ? shallowClone(scheduledFullMoonTurns) : [],
     pendingFullMoonEvents: typeof pendingFullMoonEvents === "number" ? pendingFullMoonEvents : 0,
     fullMoonEventState: shallowClone(fullMoonEventState),
+    scheduledFogOfWarTurns: typeof scheduledFogOfWarTurns !== "undefined" ? shallowClone(scheduledFogOfWarTurns) : [],
+    pendingFogOfWarEvents: typeof pendingFogOfWarEvents === "number" ? pendingFogOfWarEvents : 0,
+    fogOfWarState: shallowClone(fogOfWarState),
     activeWorldEvents: typeof cloneActiveWorldEvents === "function" ? cloneActiveWorldEvents() : {},
     kingAuctionState: typeof cloneKingAuctionState === "function" ? cloneKingAuctionState() : null,
     kingGenerosityState: typeof cloneKingGenerosityState === "function" ? cloneKingGenerosityState() : null,
@@ -738,6 +741,15 @@ function applyState(state) {
       : pendingFullMoonEvents;
   }
   fullMoonEventState = state.fullMoonEventState ? { ...state.fullMoonEventState } : null;
+  if (Array.isArray(state.scheduledFogOfWarTurns)) {
+    scheduledFogOfWarTurns = state.scheduledFogOfWarTurns.slice();
+  }
+  if (typeof pendingFogOfWarEvents !== "undefined") {
+    pendingFogOfWarEvents = Number.isFinite(state.pendingFogOfWarEvents)
+      ? Math.max(0, Math.floor(state.pendingFogOfWarEvents))
+      : pendingFogOfWarEvents;
+  }
+  fogOfWarState = state.fogOfWarState ? { ...state.fogOfWarState } : null;
   if (state.activeWorldEvents && typeof state.activeWorldEvents === "object") {
     activeWorldEvents = Object.fromEntries(
       Object.entries(state.activeWorldEvents).map(([key, value]) => [key, { ...value }])

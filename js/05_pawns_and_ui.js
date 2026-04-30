@@ -173,6 +173,15 @@ const WEREWOLF_ATTACK_MAX = 35;
 const WEREWOLF_MAX_HEALTH = 75;
 const WEREWOLF_RETARGET_INTERVAL = 3;
 const WEREWOLF_FORCED_TARGET_TURNS = 5;
+const FOG_OF_WAR_MIN_TURN = 3;
+const FOG_OF_WAR_MAX_TURN = 350;
+const FOG_OF_WAR_MIN_SPAWNS = 1;
+const FOG_OF_WAR_MAX_SPAWNS = 3;
+const FOG_OF_WAR_MIN_DURATION = 20;
+const FOG_OF_WAR_MAX_DURATION = 30;
+const FOG_OF_WAR_PLAYER_RADIUS = 4;
+const FOG_OF_WAR_CASTLE_RADIUS = 5;
+const FOG_OF_WAR_ICON_COUNT = 3;
 const HERO_BATTLE_INFLUENCE_LOSS = 50;
 const KING_CONCERN_ROLL_PENALTY = 3;
 const WORLD_EVENTS = {
@@ -282,6 +291,10 @@ let pendingCaravanEvents = 0;
 let scheduledFullMoonTurns = [];
 let pendingFullMoonEvents = 0;
 let fullMoonEventState = null;
+let scheduledFogOfWarTurns = [];
+let pendingFogOfWarEvents = 0;
+let fogOfWarState = null;
+const fogOfWarVariantsByKey = {};
 let kingAuctionState = normalizeKingAuctionState();
 let kingAuctionViewerPlayerIndex = null;
 const kingAuctionDraftBids = players.map(() => "");
@@ -306,6 +319,8 @@ const CARAVAN_EVENT_TEXT = "В королевстве проезжает кар�
 const CARAVAN_START_KEY = "0,0";
 const FULL_MOON_EVENT_TITLE = "Событие";
 const FULL_MOON_EVENT_TEXT = "Сегодня полнолуние, будьте осторожны! В королевстве водятся оборотни...";
+const FOG_OF_WAR_EVENT_TITLE = "Событие";
+const FOG_OF_WAR_EVENT_TEXT = "Королевство окутало туманом, не потеряйтесь!";
 
 const KING_GENEROSITY_GIFTS = [
   {
@@ -681,6 +696,26 @@ function initFullMoonSchedule() {
 
 function isFullMoonEventActive() {
   return Boolean(werewolfState || fullMoonEventState);
+}
+
+function initFogOfWarSchedule() {
+  const picked = new Set();
+  const count = randomIntRange(FOG_OF_WAR_MIN_SPAWNS, FOG_OF_WAR_MAX_SPAWNS);
+  while (picked.size < count) {
+    picked.add(randomIntRange(FOG_OF_WAR_MIN_TURN, FOG_OF_WAR_MAX_TURN));
+  }
+  scheduledFogOfWarTurns = Array.from(picked).sort((a, b) => a - b);
+}
+
+function isFogOfWarActive() {
+  return Boolean(fogOfWarState);
+}
+
+function initFogOfWarVariants() {
+  Object.keys(fogOfWarVariantsByKey).forEach(key => delete fogOfWarVariantsByKey[key]);
+  Object.keys(grid).forEach(key => {
+    fogOfWarVariantsByKey[key] = randomIntRange(1, FOG_OF_WAR_ICON_COUNT);
+  });
 }
 
 function initWorldEventSchedule() {
@@ -1252,6 +1287,10 @@ function announceCaravanEvent() {
 
 function announceFullMoonEvent() {
   announceWorldEventModalToAll(FULL_MOON_EVENT_TITLE, FULL_MOON_EVENT_TEXT);
+}
+
+function announceFogOfWarEvent() {
+  announceWorldEventModalToAll(FOG_OF_WAR_EVENT_TITLE, FOG_OF_WAR_EVENT_TEXT);
 }
 
 function announceWorldEventModalToAll(title, text) {
@@ -2230,6 +2269,39 @@ function tryStartPendingFullMoonEvent() {
   return true;
 }
 
+function tryStartPendingFogOfWarEvent() {
+  if (pendingFogOfWarEvents <= 0) return false;
+  if (isFogOfWarActive()) return false;
+  pendingFogOfWarEvents -= 1;
+  announceFogOfWarEvent();
+  const duration = randomIntRange(FOG_OF_WAR_MIN_DURATION, FOG_OF_WAR_MAX_DURATION);
+  fogOfWarState = {
+    duration,
+    expiresAtTurn: turnCounter + duration - 1
+  };
+  return true;
+}
+
+function activateScheduledFogOfWarEvents() {
+  if (!scheduledFogOfWarTurns.length) return;
+  const activating = scheduledFogOfWarTurns.filter(turn => turn === turnCounter);
+  if (!activating.length) return;
+  scheduledFogOfWarTurns = scheduledFogOfWarTurns.filter(turn => turn !== turnCounter);
+  activating.forEach(() => {
+    pendingFogOfWarEvents += 1;
+  });
+  tryStartPendingFogOfWarEvent();
+}
+
+function advanceFogOfWarState() {
+  if (fogOfWarState && turnCounter >= fogOfWarState.expiresAtTurn) {
+    fogOfWarState = null;
+  }
+  if (!fogOfWarState) {
+    tryStartPendingFogOfWarEvent();
+  }
+}
+
 function activateScheduledFullMoonEvents() {
   if (!scheduledFullMoonTurns.length) return;
   const activating = scheduledFullMoonTurns.filter(turn => turn === turnCounter);
@@ -2450,6 +2522,72 @@ function getViewerWorldPlayerIndex() {
 function getVisibleWorldLayer() {
   const viewerIndex = getViewerWorldPlayerIndex();
   return players[viewerIndex]?.layer || WORLD_LAYER_UPPER;
+}
+
+function isWithinVisionRadius(originX, originY, targetX, targetY, radius) {
+  return Math.max(Math.abs(originX - targetX), Math.abs(originY - targetY)) <= radius;
+}
+
+function getFogOfWarVisibleKeysForPlayer(playerIndex) {
+  const visible = new Set();
+  const player = players[playerIndex];
+  if (!player || (player.layer || WORLD_LAYER_UPPER) !== WORLD_LAYER_UPPER) {
+    return visible;
+  }
+  for (let y = 0; y < ROWS; y += 1) {
+    for (let x = 0; x < COLS; x += 1) {
+      if (isWithinVisionRadius(player.x, player.y, x, y, FOG_OF_WAR_PLAYER_RADIUS)) {
+        visible.add(`${x},${y}`);
+      }
+    }
+  }
+  Object.keys(castleOwnersByKey).forEach(key => {
+    if (castleOwnersByKey[key] !== playerIndex) return;
+    const [castleX, castleY] = key.split(",").map(Number);
+    const castleCells = [
+      { x: castleX, y: castleY },
+      { x: castleX + 1, y: castleY },
+      { x: castleX, y: castleY + 1 },
+      { x: castleX + 1, y: castleY + 1 }
+    ].filter(cell => cell.x >= 0 && cell.x < COLS && cell.y >= 0 && cell.y < ROWS);
+    for (let y = 0; y < ROWS; y += 1) {
+      for (let x = 0; x < COLS; x += 1) {
+        if (castleCells.some(cell => isWithinVisionRadius(cell.x, cell.y, x, y, FOG_OF_WAR_CASTLE_RADIUS))) {
+          visible.add(`${x},${y}`);
+        }
+      }
+    }
+  });
+  return visible;
+}
+
+function isUpperWorldKeyVisibleToPlayer(key, playerIndex = getViewerWorldPlayerIndex()) {
+  if (!isFogOfWarActive()) return true;
+  const visibleLayer = getVisibleWorldLayer();
+  if (visibleLayer !== WORLD_LAYER_UPPER) return true;
+  return getFogOfWarVisibleKeysForPlayer(playerIndex).has(key);
+}
+
+function applyFogOfWarMask() {
+  const viewerIndex = getViewerWorldPlayerIndex();
+  const visibleKeys = isFogOfWarActive()
+    ? getFogOfWarVisibleKeysForPlayer(viewerIndex)
+    : null;
+  Object.keys(grid).forEach(key => {
+    const cell = grid[key];
+    if (!cell) return;
+    const hidden = Boolean(visibleKeys) && !visibleKeys.has(key);
+    cell.classList.toggle("fogged", hidden);
+    if (hidden) {
+      const variant = fogOfWarVariantsByKey[key] || 1;
+      cell.dataset.fogVariant = String(variant);
+    } else {
+      delete cell.dataset.fogVariant;
+    }
+    if (hidden) {
+      cell.removeAttribute("title");
+    }
+  });
 }
 
 function getPlayerUnderworldState(playerIndex) {
@@ -2745,6 +2883,7 @@ function renderUpperWorldView() {
     cell.textContent = "";
     setCellIcon(cell, STAIRS_ICON.file, STAIRS_ICON.alt);
   });
+  applyFogOfWarMask();
 }
 
 function renderUnderworldView(playerIndex) {
@@ -3006,6 +3145,7 @@ function getVoidShardEligibleKeys(playerIndex) {
     if (bridgeOpenedKeys.has(key)) return false;
     if (occupiedByPlayers.has(key)) return false;
     if (isMovementBlockedKey(key)) return false;
+    if (isFogOfWarActive() && !isUpperWorldKeyVisibleToPlayer(key, playerIndex)) return false;
     const cell = grid[key];
     return Boolean(cell) && cell.classList.contains("inactive");
   });
@@ -3907,6 +4047,7 @@ function getHoverInfoPlayer() {
 }
 
 function getCellHoverTooltipData(key) {
+  if (!isUpperWorldKeyVisibleToPlayer(key)) return null;
   const player = getHoverInfoPlayer();
   if (typeof MASTER_CELL !== "undefined" && typeof masterActive !== "undefined" && masterActive && key === MASTER_CELL.key) {
     return {
@@ -4037,6 +4178,10 @@ function handleGameHoverInfo(event) {
   }
   const key = cell.dataset.key;
   if (!key) {
+    hideCellHoverTooltip();
+    return;
+  }
+  if (cell.classList.contains("fogged")) {
     hideCellHoverTooltip();
     return;
   }
@@ -7508,8 +7653,12 @@ function updatePawn(player, index) {
     visibleLayer === WORLD_LAYER_UPPER
       ? playerLayer === WORLD_LAYER_UPPER
       : index === viewerIndex && playerLayer === WORLD_LAYER_UNDER;
-  pawn.style.display = shouldShow ? "block" : "none";
-  if (!shouldShow) return;
+  const isVisibleToViewer =
+    visibleLayer !== WORLD_LAYER_UPPER ||
+    playerLayer !== WORLD_LAYER_UPPER ||
+    isUpperWorldKeyVisibleToPlayer(`${player.x},${player.y}`, viewerIndex);
+  pawn.style.display = shouldShow && isVisibleToViewer ? "block" : "none";
+  if (!shouldShow || !isVisibleToViewer) return;
   const pawnSize = Math.max(40, Math.round(cellSize * 1.12));
   pawn.style.width = pawnSize + "px";
   pawn.style.height = pawnSize + "px";
@@ -7654,6 +7803,7 @@ function completeTurnAdvance() {
   activateScheduledRoyalMessengerEvents();
   activateScheduledCaravanEvents();
   activateScheduledFullMoonEvents();
+  activateScheduledFogOfWarEvents();
   handleMageCellTimers();
   if (turnCounter === 150 && !worldDangerShown) {
     showWorldDangerModal();
@@ -7685,6 +7835,7 @@ function completeTurnAdvance() {
   advanceMessengers();
   advanceCaravans();
   advanceWerewolf();
+  advanceFogOfWarState();
   movesRemaining = 0;
   lastRoll = null;
   lastRollText = "-";
@@ -7837,6 +7988,7 @@ function showReachable() {
   if (movesRemaining <= 0) return;
   const revealCells = shouldRevealReachableCells();
   const currentPlayer = players[currentPlayerIndex];
+  const fogLimited = (currentPlayer?.layer || WORLD_LAYER_UPPER) === WORLD_LAYER_UPPER && isFogOfWarActive();
   if ((currentPlayer?.layer || WORLD_LAYER_UPPER) === WORLD_LAYER_UNDER) {
     const queue = [{x: currentPlayer.x, y: currentPlayer.y, steps: 0}];
     const visited = new Set([`${currentPlayer.x},${currentPlayer.y}`]);
@@ -7894,6 +8046,7 @@ function showReachable() {
       const node = nodeByPos[key];
       if (node && node.id === 15 && player.resources.influence < 500) continue;
       if (isMovementBlockedKey(key)) continue;
+      if (fogLimited && !isUpperWorldKeyVisibleToPlayer(key, currentPlayerIndex)) continue;
       visited.add(key);
       queue.push({x: nx, y: ny, steps: steps + 1});
     }
@@ -8414,6 +8567,9 @@ function resetGameState() {
   scheduledFullMoonTurns = [];
   pendingFullMoonEvents = 0;
   fullMoonEventState = null;
+  scheduledFogOfWarTurns = [];
+  pendingFogOfWarEvents = 0;
+  fogOfWarState = null;
   activeWorldEvents = {};
   worldEventModalQueue = [];
   closeWorldEventModal();
@@ -8610,6 +8766,8 @@ function resetGameState() {
   initRoyalMessengerSchedule();
   initCaravanSchedule();
   initFullMoonSchedule();
+  initFogOfWarSchedule();
+  initFogOfWarVariants();
   initWormholeSpawns();
 
   if (typeof mageSlot !== "undefined") {
@@ -8698,6 +8856,8 @@ initWorldEventSchedule();
 initRoyalMessengerSchedule();
 initCaravanSchedule();
 initFullMoonSchedule();
+initFogOfWarSchedule();
+initFogOfWarVariants();
 initWormholeSpawns();
 relayout();
 refreshVisibleWorld();

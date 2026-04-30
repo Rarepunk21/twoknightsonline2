@@ -21,8 +21,15 @@ game.addEventListener("click", e => {
 
   if (gridX < 0 || gridX >= COLS || gridY < 0 || gridY >= ROWS) return;
 
-  const key = `${gridX},${gridY}`;
   const currentPlayer = players[currentPlayerIndex];
+  const key = `${gridX},${gridY}`;
+  if (
+    (currentPlayer.layer || WORLD_LAYER_UPPER) === WORLD_LAYER_UPPER &&
+    typeof isUpperWorldKeyVisibleToPlayer === "function" &&
+    !isUpperWorldKeyVisibleToPlayer(key, currentPlayerIndex)
+  ) {
+    return;
+  }
   if (ballistaModePlayerIndex === currentPlayerIndex) {
     tryBallistaShot(gridX, gridY);
     return;
