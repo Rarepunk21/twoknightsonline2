@@ -91,6 +91,20 @@ game.addEventListener("click", e => {
     finalizeMove(gridX, gridY);
     return;
   }
+  const messengerTarget = getMessengerAtKey(key);
+  if (messengerTarget) {
+    if (messengerTarget.targetPlayerIndex === currentPlayerIndex) {
+      clearReachable();
+      currentPlayer.x = gridX;
+      currentPlayer.y = gridY;
+      movesRemaining = 0;
+      updatePawns();
+      openMessengerModal(messengerTarget.id, currentPlayerIndex);
+      return;
+    }
+    robMessenger(currentPlayerIndex, messengerTarget);
+    return;
+  }
   const node = nodeByPos[key];
   if (node && node.id === 15 && currentPlayer.resources.influence < 500) {
     showPickupToast("Нужно 500 влияния, чтобы войти к Королю.");

@@ -361,10 +361,14 @@ function buildState() {
     thiefIdCounter,
     cutthroats: shallowClone(cutthroats),
     cutthroatIdCounter,
+    messengers: shallowClone(messengers),
+    messengerIdCounter,
     trapStunFields: shallowClone(trapStunFields),
     trapStunIdCounter,
     bridgeOpenedKeys: Array.from(bridgeOpenedKeys),
     scheduledWorldEvents: typeof cloneWorldEventSchedule === "function" ? cloneWorldEventSchedule() : [],
+    scheduledRoyalMessengerTurns: typeof scheduledRoyalMessengerTurns !== "undefined" ? shallowClone(scheduledRoyalMessengerTurns) : [],
+    pendingRoyalMessengerEvents: typeof pendingRoyalMessengerEvents === "number" ? pendingRoyalMessengerEvents : 0,
     activeWorldEvents: typeof cloneActiveWorldEvents === "function" ? cloneActiveWorldEvents() : {},
     kingAuctionState: typeof cloneKingAuctionState === "function" ? cloneKingAuctionState() : null,
     kingGenerosityState: typeof cloneKingGenerosityState === "function" ? cloneKingGenerosityState() : null,
@@ -404,7 +408,10 @@ function resetDynamicCells() {
   for (let y = 0; y < ROWS; y++) {
     for (let x = 0; x < COLS; x++) {
       const key = `${x},${y}`;
-      if (nodeByPos[key]) continue;
+      if (nodeByPos[key]) {
+        restoreImportantNodeCell(key, grid[key]);
+        continue;
+      }
       setCellToInactive(x, y, { skipTreasureCleanup: true });
     }
   }
@@ -428,6 +435,8 @@ function resetDynamicCells() {
   barbarianRespawnTimers.length = 0;
   mercenaries.length = 0;
   thieves.length = 0;
+  cutthroats.length = 0;
+  messengers.length = 0;
   treasure = null;
   flowerArtifact = null;
   cloverArtifact = null;
@@ -615,6 +624,10 @@ function applyCutthroat(entry) {
   setCellToCutthroat(entry.x, entry.y);
 }
 
+function applyMessenger(entry) {
+  setCellToMessenger(entry.x, entry.y);
+}
+
 function applyCastleOwnershipVisuals() {
   Object.entries(nodeByPos || {}).forEach(([key, node]) => {
     if (!node || node.type !== "castle" || !node.elem) return;
@@ -680,6 +693,14 @@ function applyState(state) {
   wormholeSpawnIndex = state.wormholeSpawnIndex ?? wormholeSpawnIndex;
   if (Array.isArray(state.scheduledWorldEvents)) {
     scheduledWorldEvents = state.scheduledWorldEvents.map(event => ({ ...event }));
+  }
+  if (Array.isArray(state.scheduledRoyalMessengerTurns)) {
+    scheduledRoyalMessengerTurns = state.scheduledRoyalMessengerTurns.slice();
+  }
+  if (typeof pendingRoyalMessengerEvents !== "undefined") {
+    pendingRoyalMessengerEvents = Number.isFinite(state.pendingRoyalMessengerEvents)
+      ? Math.max(0, Math.floor(state.pendingRoyalMessengerEvents))
+      : pendingRoyalMessengerEvents;
   }
   if (state.activeWorldEvents && typeof state.activeWorldEvents === "object") {
     activeWorldEvents = Object.fromEntries(
@@ -783,6 +804,13 @@ function applyState(state) {
     cutthroats.push(entry);
   });
   cutthroatIdCounter = state.cutthroatIdCounter ?? cutthroatIdCounter;
+
+  messengers.length = 0;
+  (state.messengers || []).forEach(entry => {
+    applyMessenger(entry);
+    messengers.push(entry);
+  });
+  messengerIdCounter = state.messengerIdCounter ?? messengerIdCounter;
 
   if (typeof trapStunFields !== "undefined") {
     trapStunFields.length = 0;
@@ -1181,6 +1209,18 @@ function performPrivateUiAction(action) {
     if (modalType === "repair") {
       if (actionType === "confirm") {
         clickBySelector("#repairConfirm");
+      }
+      return;
+    }
+    if (modalType === "messenger") {
+      if (payload.messengerId) {
+        pendingMessengerInteraction = {
+          messengerId: payload.messengerId,
+          playerIndex
+        };
+      }
+      if (actionType === "confirm") {
+        clickBySelector("#messengerConfirm");
       }
       return;
     }
@@ -1606,6 +1646,10 @@ if (socket) {
       openRepairModal(payload.entry, payload.playerIndex);
       return;
     }
+    if (type === "showMessengerModal" && typeof openMessengerModal === "function") {
+      openMessengerModal(payload.messengerId, payload.playerIndex);
+      return;
+    }
     if (type === "showGuardModal" && typeof showGuardModalFor === "function") {
       showGuardModalFor(payload.playerIndex, payload.x, payload.y, payload.unlocked);
       return;
@@ -1627,7 +1671,7 @@ if (socket) {
     if (!onlineMatchStarted) return;
     if (isHost || applyingRemoteState || performingRemoteAction) return;
     if (onlineGamePaused) return;
-    if (e.target?.closest?.("#castleModal, #hireModal, #trollCaveModal, #battleModal, #worldEventModal, #kingAuctionModal, #kingGenerosityModal, #barracksModal, #lavkaModal, #workshopModal, #cityModal, #masterModal, #mageModal, #stoneModal, #stoneResultModal, #repairModal, #guardModal")) {
+    if (e.target?.closest?.("#castleModal, #hireModal, #trollCaveModal, #battleModal, #worldEventModal, #kingAuctionModal, #kingGenerosityModal, #barracksModal, #lavkaModal, #workshopModal, #cityModal, #masterModal, #mageModal, #stoneModal, #stoneResultModal, #repairModal, #messengerModal, #guardModal")) {
       return;
     }
     const action = getActionFromEvent(e);
@@ -1649,7 +1693,7 @@ if (socket) {
     if (!onlineMatchStarted) return;
     if (!isHost || applyingRemoteState || performingRemoteAction) return;
     if (onlineGamePaused) return;
-    if (e.target?.closest?.("#castleModal, #hireModal, #trollCaveModal, #battleModal, #worldEventModal, #kingAuctionModal, #kingGenerosityModal, #barracksModal, #lavkaModal, #workshopModal, #cityModal, #masterModal, #mageModal, #stoneModal, #stoneResultModal, #repairModal, #guardModal")) {
+    if (e.target?.closest?.("#castleModal, #hireModal, #trollCaveModal, #battleModal, #worldEventModal, #kingAuctionModal, #kingGenerosityModal, #barracksModal, #lavkaModal, #workshopModal, #cityModal, #masterModal, #mageModal, #stoneModal, #stoneResultModal, #repairModal, #messengerModal, #guardModal")) {
       return;
     }
     const action = getActionFromEvent(e);

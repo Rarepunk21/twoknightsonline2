@@ -140,6 +140,17 @@ const WORLD_EVENT_MAX_TURN = 300;
 const WORLD_EVENT_TRIGGER_CHANCE = 0.5;
 const WORLD_EVENT_GOLD_TAX_MULTIPLIER = 1.3;
 const WORLD_EVENT_TROLL_HUNT_GOLD_REWARD = 1000;
+const ROYAL_MESSENGER_MIN_TURN = 20;
+const ROYAL_MESSENGER_MAX_TURN = 350;
+const ROYAL_MESSENGER_MIN_SPAWNS = 1;
+const ROYAL_MESSENGER_MAX_SPAWNS = 3;
+const ROYAL_MESSENGER_TAX_GOLD = 500;
+const ROYAL_MESSENGER_EMPTY_CASTLE_INFLUENCE_LOSS = 150;
+const ROYAL_MESSENGER_NO_CASTLE_INFLUENCE_LOSS = 100;
+const ROYAL_MESSENGER_SUCCESS_INFLUENCE_REWARD = 150;
+const ROYAL_MESSENGER_RETURN_GOLD_FINE = 500;
+const ROYAL_MESSENGER_SPEED_MIN = 3;
+const ROYAL_MESSENGER_SPEED_MAX = 4;
 const HERO_BATTLE_INFLUENCE_LOSS = 50;
 const KING_CONCERN_ROLL_PENALTY = 3;
 const WORLD_EVENTS = {
@@ -242,11 +253,24 @@ let mineLevel2OwnerPlayerIndex = null;
 let scheduledWorldEvents = [];
 let activeWorldEvents = {};
 let worldEventModalQueue = [];
+let scheduledRoyalMessengerTurns = [];
+let pendingRoyalMessengerEvents = 0;
 let kingAuctionState = normalizeKingAuctionState();
 let kingAuctionViewerPlayerIndex = null;
 const kingAuctionDraftBids = players.map(() => "");
 let kingGenerosityState = normalizeKingGenerosityState();
 let kingGenerosityViewerPlayerIndex = null;
+const messengers = [];
+let messengerIdCounter = 1;
+let pendingMessengerInteraction = null;
+const ROYAL_MESSENGER_EVENT_TITLE = "Королевский указ";
+const ROYAL_MESSENGER_EVENT_TEXT = "Король отправил гонцов в ваши замки, чтобы собрать налог 500 золотых монет. Проследите, чтобы монеты дошли до казны!";
+const ROYAL_MESSENGER_SPAWN_KEYS = guardNode
+  ? [
+      `${guardNode.x},${guardNode.y - 1}`,
+      `${guardNode.x - 1},${guardNode.y}`
+    ]
+  : [];
 
 const KING_GENEROSITY_GIFTS = [
   {
@@ -583,6 +607,19 @@ function cloneActiveWorldEvents() {
   return Object.fromEntries(
     Object.entries(activeWorldEvents).map(([key, value]) => [key, { ...value }])
   );
+}
+
+function initRoyalMessengerSchedule() {
+  const picked = new Set();
+  const count = randomIntRange(ROYAL_MESSENGER_MIN_SPAWNS, ROYAL_MESSENGER_MAX_SPAWNS);
+  while (picked.size < count) {
+    picked.add(randomIntRange(ROYAL_MESSENGER_MIN_TURN, ROYAL_MESSENGER_MAX_TURN));
+  }
+  scheduledRoyalMessengerTurns = Array.from(picked).sort((a, b) => a - b);
+}
+
+function isRoyalMessengerEventActive() {
+  return messengers.length > 0;
 }
 
 function initWorldEventSchedule() {
@@ -1126,6 +1163,48 @@ function announcePlayerSpecificWorldEvent(payloadByPlayerIndex) {
   });
 }
 
+function showPrivateWorldEventModalForPlayer(playerIndex, title, text) {
+  const payload = { title, text };
+  const inMultiplayer =
+    typeof socket !== "undefined" &&
+    socket &&
+    typeof onlineMatchStarted !== "undefined" &&
+    onlineMatchStarted;
+  if (!inMultiplayer) {
+    enqueueWorldEventModal(payload);
+    return;
+  }
+  if (typeof shouldDelegatePrivateUiToPlayer === "function" && shouldDelegatePrivateUiToPlayer(playerIndex)) {
+    emitPrivateUiToPlayer(playerIndex, "showWorldEventModal", payload);
+    return;
+  }
+  enqueueWorldEventModal(payload);
+}
+
+function announceRoyalMessengerEvent() {
+  announceWorldEventModalToAll(ROYAL_MESSENGER_EVENT_TITLE, ROYAL_MESSENGER_EVENT_TEXT);
+}
+
+function announceWorldEventModalToAll(title, text) {
+  const payload = { title, text };
+  const inMultiplayer =
+    typeof socket !== "undefined" &&
+    socket &&
+    typeof onlineMatchStarted !== "undefined" &&
+    onlineMatchStarted;
+  if (!inMultiplayer) {
+    enqueueWorldEventModal(payload);
+    return;
+  }
+  players.forEach((_, playerIndex) => {
+    if (typeof shouldDelegatePrivateUiToPlayer === "function" && shouldDelegatePrivateUiToPlayer(playerIndex)) {
+      emitPrivateUiToPlayer(playerIndex, "showWorldEventModal", payload);
+      return;
+    }
+    enqueueWorldEventModal(payload);
+  });
+}
+
 function applyRoyalTaxWorldEvent() {
   const def = WORLD_EVENTS.royalTax;
   if (!def) return;
@@ -1249,6 +1328,348 @@ function applyKingConcernWorldEvent(event) {
 
   players.forEach((_, playerIndex) => updatePlayerResources(playerIndex));
   announcePlayerSpecificWorldEvent(payloadByPlayerIndex);
+}
+
+function getMessengerAtKey(key) {
+  return messengers.find(entry => entry.key === key) || null;
+}
+
+function setCellToMessenger(x, y) {
+  const key = `${x},${y}`;
+  const cell = grid[key];
+  if (!cell) return false;
+  cell.classList.remove("inactive");
+  cell.classList.add("important", "messenger");
+  cell.textContent = "";
+  setCellIcon(cell, "messenger.png", "Гонец");
+  return true;
+}
+
+function clearMessengerCell(x, y) {
+  const key = `${x},${y}`;
+  const cell = grid[key];
+  if (!cell) return;
+  const node = nodeByPos[key];
+  if (node) {
+    restoreImportantNodeCell(key, cell);
+    return;
+  }
+  setCellToInactive(x, y);
+}
+
+function removeMessengerAtIndex(index) {
+  const messenger = messengers[index];
+  if (!messenger) return;
+  clearMessengerCell(messenger.x, messenger.y);
+  messengers.splice(index, 1);
+}
+
+function isMessengerStepAllowed(nx, ny, targetKey) {
+  const key = `${nx},${ny}`;
+  if (blockedCellKeys.has(key)) return false;
+  if (key === targetKey) return true;
+  const cell = grid[key];
+  if (!cell || !cell.classList.contains("inactive")) return false;
+  if (resourceByPos[key]) return false;
+  if (specialByPos[key]) return false;
+  if (barbarianCells.some(entry => entry.key === key)) return false;
+  if (mercenaries.some(entry => entry.key === key)) return false;
+  if (thieves.some(entry => entry.key === key)) return false;
+  if (cutthroats.some(entry => entry.key === key)) return false;
+  if (messengers.some(entry => entry.key === key)) return false;
+  if (players.some(player => player.x === nx && player.y === ny)) return false;
+  if (treasure?.key === key) return false;
+  if (flowerArtifact?.key === key) return false;
+  if (cloverArtifact?.key === key) return false;
+  if (stoneByPos[key]) return false;
+  if (rainbowByPos[key]) return false;
+  if (typeof voidShardByPos !== "undefined" && voidShardByPos[key]) return false;
+  if (typeof trollState !== "undefined" && trollState?.active && trollState.key === key) return false;
+  return true;
+}
+
+function findMessengerPath(startKey, targetKey, maxDepth = 80) {
+  const [sx, sy] = startKey.split(",").map(Number);
+  const queue = [{ x: sx, y: sy }];
+  const prev = new Map();
+  const startId = `${sx},${sy}`;
+  prev.set(startId, null);
+  const dirs = [
+    { dx: 1, dy: 0 },
+    { dx: -1, dy: 0 },
+    { dx: 0, dy: 1 },
+    { dx: 0, dy: -1 }
+  ];
+  let depth = 0;
+  while (queue.length && depth <= maxDepth) {
+    const nextQueue = [];
+    for (const node of queue) {
+      const key = `${node.x},${node.y}`;
+      if (key === targetKey) {
+        const path = [];
+        let cur = key;
+        while (cur && cur !== startId) {
+          path.push(cur);
+          cur = prev.get(cur);
+        }
+        path.reverse();
+        return path;
+      }
+      for (const { dx, dy } of dirs) {
+        const nx = node.x + dx;
+        const ny = node.y + dy;
+        if (nx < 0 || nx >= COLS || ny < 0 || ny >= ROWS) continue;
+        const nkey = `${nx},${ny}`;
+        if (prev.has(nkey)) continue;
+        if (!isMessengerStepAllowed(nx, ny, targetKey)) continue;
+        prev.set(nkey, key);
+        nextQueue.push({ x: nx, y: ny });
+      }
+    }
+    queue.splice(0, queue.length, ...nextQueue);
+    depth += 1;
+  }
+  return null;
+}
+
+function moveMessenger(messenger) {
+  if (!messenger?.targetKey || messenger.key === messenger.targetKey) return;
+  const path = findMessengerPath(messenger.key, messenger.targetKey, 120);
+  if (!path || !path.length) return;
+  const steps = Math.min(randomIntRange(ROYAL_MESSENGER_SPEED_MIN, ROYAL_MESSENGER_SPEED_MAX), path.length);
+  clearMessengerCell(messenger.x, messenger.y);
+  for (let i = 0; i < steps; i += 1) {
+    const [nx, ny] = path[i].split(",").map(Number);
+    messenger.x = nx;
+    messenger.y = ny;
+    messenger.key = `${nx},${ny}`;
+    if (messenger.key === messenger.targetKey) break;
+  }
+}
+
+function resolveMessengerCastleVisit(messenger) {
+  const targetPlayer = players[messenger.targetPlayerIndex];
+  if (!targetPlayer) return;
+  const castleKey = getFirstOwnedCastleKey(messenger.targetPlayerIndex);
+  const ownsTargetCastle = castleKey && castleKey === messenger.targetCastleKey;
+  messenger.cargoGold = 0;
+  if (ownsTargetCastle && (targetPlayer.resources.gold || 0) >= ROYAL_MESSENGER_TAX_GOLD) {
+    targetPlayer.resources.gold -= ROYAL_MESSENGER_TAX_GOLD;
+    messenger.cargoGold = ROYAL_MESSENGER_TAX_GOLD;
+    showPrivatePickupToastForPlayer(
+      messenger.targetPlayerIndex,
+      `Королевский гонец забрал ${ROYAL_MESSENGER_TAX_GOLD} золота из вашего замка.`
+    );
+  } else {
+    targetPlayer.resources.influence -= ROYAL_MESSENGER_EMPTY_CASTLE_INFLUENCE_LOSS;
+    showPrivatePickupToastForPlayer(
+      messenger.targetPlayerIndex,
+      `В вашем замке не нашлось ${ROYAL_MESSENGER_TAX_GOLD} золота. Потеряно ${ROYAL_MESSENGER_EMPTY_CASTLE_INFLUENCE_LOSS} влияния.`
+    );
+  }
+  messenger.phase = "toGuard";
+  messenger.targetKey = guardKey;
+  updatePlayerResources(messenger.targetPlayerIndex);
+  if (guardKey !== messenger.key) {
+    setCellToMessenger(messenger.x, messenger.y);
+  }
+}
+
+function resolveMessengerGuardArrival(messenger) {
+  const targetPlayer = players[messenger.targetPlayerIndex];
+  if (!targetPlayer) return;
+  if ((messenger.cargoGold || 0) > 0) {
+    targetPlayer.resources.influence += ROYAL_MESSENGER_SUCCESS_INFLUENCE_REWARD;
+    showPrivatePickupToastForPlayer(
+      messenger.targetPlayerIndex,
+      `Гонец доставил налог королю. Вы получаете ${ROYAL_MESSENGER_SUCCESS_INFLUENCE_REWARD} влияния.`
+    );
+  } else {
+    const fine = Math.min(getTotalGold(targetPlayer), ROYAL_MESSENGER_RETURN_GOLD_FINE);
+    if (fine > 0) {
+      spendGold(targetPlayer, fine);
+    }
+    showPrivatePickupToastForPlayer(
+      messenger.targetPlayerIndex,
+      fine > 0
+        ? `Гонец вернулся без денег. Король взыскал ${fine} золота.`
+        : "Гонец вернулся без денег. Король попытался взыскать 500 золота, но казна пуста."
+    );
+  }
+  updatePlayerResources(messenger.targetPlayerIndex);
+}
+
+function advanceMessengers() {
+  for (let i = messengers.length - 1; i >= 0; i -= 1) {
+    const messenger = messengers[i];
+    const targetPlayer = players[messenger.targetPlayerIndex];
+    if (!targetPlayer) {
+      removeMessengerAtIndex(i);
+      continue;
+    }
+    if (!messenger.targetKey) {
+      removeMessengerAtIndex(i);
+      continue;
+    }
+    moveMessenger(messenger);
+    if (messenger.key === messenger.targetKey) {
+      if (messenger.phase === "toCastle") {
+        resolveMessengerCastleVisit(messenger);
+        continue;
+      }
+      if (messenger.phase === "toGuard") {
+        resolveMessengerGuardArrival(messenger);
+        removeMessengerAtIndex(i);
+        continue;
+      }
+    }
+    setCellToMessenger(messenger.x, messenger.y);
+  }
+  if (!isRoyalMessengerEventActive() && pendingRoyalMessengerEvents > 0) {
+    pendingRoyalMessengerEvents -= 1;
+    startRoyalMessengerEvent();
+  }
+}
+
+function startRoyalMessengerEvent() {
+  announceRoyalMessengerEvent();
+  const pendingPlayers = players
+    .map((player, playerIndex) => ({
+      player,
+      playerIndex,
+      castleKey: getFirstOwnedCastleKey(playerIndex)
+    }));
+  const availableSpawnKeys = ROYAL_MESSENGER_SPAWN_KEYS.filter(key => {
+    const [x, y] = key.split(",").map(Number);
+    if (x < 0 || x >= COLS || y < 0 || y >= ROWS) return false;
+    if (messengers.some(entry => entry.key === key)) return false;
+    const cell = grid[key];
+    return Boolean(cell) && cell.classList.contains("inactive");
+  });
+
+  pendingPlayers.forEach(({ playerIndex, castleKey }) => {
+    if (castleKey) return;
+    const player = players[playerIndex];
+    if (!player) return;
+    player.resources.influence -= ROYAL_MESSENGER_NO_CASTLE_INFLUENCE_LOSS;
+    updatePlayerResources(playerIndex);
+    showPrivatePickupToastForPlayer(
+      playerIndex,
+      `У вас нет замка. Потеряно ${ROYAL_MESSENGER_NO_CASTLE_INFLUENCE_LOSS} влияния.`
+    );
+  });
+
+  pendingPlayers
+    .filter(entry => Boolean(entry.castleKey))
+    .forEach(({ playerIndex, castleKey }) => {
+      const spawnKey = availableSpawnKeys.shift();
+      if (!spawnKey) return;
+      const [x, y] = spawnKey.split(",").map(Number);
+      messengers.push({
+        id: messengerIdCounter++,
+        key: spawnKey,
+        x,
+        y,
+        targetPlayerIndex: playerIndex,
+        targetCastleKey: castleKey,
+        targetKey: castleKey,
+        phase: "toCastle",
+        cargoGold: 0
+      });
+      setCellToMessenger(x, y);
+    });
+}
+
+function activateScheduledRoyalMessengerEvents() {
+  if (!scheduledRoyalMessengerTurns.length) return;
+  const activating = scheduledRoyalMessengerTurns.filter(turn => turn === turnCounter);
+  if (!activating.length) return;
+  scheduledRoyalMessengerTurns = scheduledRoyalMessengerTurns.filter(turn => turn !== turnCounter);
+  activating.forEach(() => {
+    if (isRoyalMessengerEventActive()) {
+      pendingRoyalMessengerEvents += 1;
+      return;
+    }
+    startRoyalMessengerEvent();
+  });
+}
+
+function robMessenger(playerIndex, messenger) {
+  const attacker = players[playerIndex];
+  if (!attacker || !messenger) return false;
+  const stolenGold = Math.max(0, messenger.cargoGold || 0);
+  attacker.x = messenger.x;
+  attacker.y = messenger.y;
+  movesRemaining = 0;
+  clearReachable();
+  updatePawns();
+  if (stolenGold > 0) {
+    attacker.pocket.gold += stolenGold;
+    messenger.cargoGold = 0;
+    updatePlayerResources(playerIndex);
+    showPrivateWorldEventModalForPlayer(playerIndex, "Грабёж гонца", "Вы ограбили гонца и получаете 500 золота.");
+  } else {
+    showPrivateWorldEventModalForPlayer(playerIndex, "Грабёж гонца", "У гонца нет денег.");
+  }
+  endTurn();
+  return true;
+}
+
+function getMessengerById(id) {
+  return messengers.find(entry => entry.id === id) || null;
+}
+
+function openMessengerModal(messengerId, playerIndex) {
+  const messenger = getMessengerById(messengerId);
+  const player = players[playerIndex];
+  if (!messenger || !player || !messengerModal || !messengerConfirm) return;
+  pendingMessengerInteraction = { messengerId, playerIndex };
+  if (shouldDelegatePrivateUiToPlayer(playerIndex)) {
+    emitPrivateUiToPlayer(playerIndex, "showMessengerModal", { messengerId, playerIndex });
+    return;
+  }
+  const canAfford = getTotalGold(player) >= ROYAL_MESSENGER_TAX_GOLD;
+  const isAlreadyFilled = (messenger.cargoGold || 0) >= ROYAL_MESSENGER_TAX_GOLD;
+  if (messengerModalText) {
+    if (isAlreadyFilled) {
+      messengerModalText.textContent = "У этого гонца уже есть 500 золота.";
+    } else {
+      messengerModalText.textContent = "Вы можете передать своему гонцу 500 золота. Сначала деньги возьмутся из кармана, затем из замка.";
+    }
+  }
+  messengerConfirm.disabled = isAlreadyFilled || !canAfford;
+  messengerModal.style.display = "flex";
+}
+
+function closeMessengerModal() {
+  if (messengerModal) messengerModal.style.display = "none";
+  pendingMessengerInteraction = null;
+  resumeTurnFlowAfterModalChange();
+}
+
+function fillMessengerWithGold(playerIndex, messengerId) {
+  const player = players[playerIndex];
+  const messenger = getMessengerById(messengerId);
+  if (!player || !messenger) return false;
+  if (messenger.targetPlayerIndex !== playerIndex) return false;
+  if ((messenger.cargoGold || 0) >= ROYAL_MESSENGER_TAX_GOLD) {
+    showPrivatePickupToastForPlayer(playerIndex, "У гонца уже есть 500 золота.");
+    closeMessengerModal();
+    return false;
+  }
+  if (getTotalGold(player) < ROYAL_MESSENGER_TAX_GOLD) {
+    showPrivatePickupToastForPlayer(playerIndex, "Не хватает золота для пополнения гонца.");
+    if (!shouldDelegatePrivateUiToPlayer(playerIndex)) {
+      openMessengerModal(messengerId, playerIndex);
+    }
+    return false;
+  }
+  spendGold(player, ROYAL_MESSENGER_TAX_GOLD);
+  messenger.cargoGold = ROYAL_MESSENGER_TAX_GOLD;
+  updatePlayerResources(playerIndex);
+  showPrivatePickupToastForPlayer(playerIndex, "Вы передали гонцу 500 золота.");
+  closeMessengerModal();
+  return true;
 }
 
 function tickWorldEvents() {
@@ -1451,7 +1872,7 @@ function resetCellForVisibleRender(key) {
   if (!cell) return;
   cell.classList.remove(
     "resource", "important", "owned", "reachable", "barbarian", "special", "forest",
-    "resource-disabled", "mercenary", "thief", "cutthroat", "mage", "portal", "wormhole",
+    "resource-disabled", "mercenary", "thief", "cutthroat", "messenger", "mage", "portal", "wormhole",
     "stairs", "flower", "clover", "stone", "rainbow-stone", "void-shard", "master", "troll", "troll-cave", "treasure"
   );
   cell.classList.add("inactive");
@@ -1621,6 +2042,7 @@ function renderUpperWorldView() {
   mercenaries.forEach(entry => setCellToMercenary(entry.x, entry.y));
   thieves.forEach(entry => setCellToThief(entry.x, entry.y));
   cutthroats.forEach(entry => setCellToCutthroat(entry.x, entry.y));
+  messengers.forEach(entry => setCellToMessenger(entry.x, entry.y));
   if (typeof updateTrollVisual === "function") {
     trollState.prevKey = null;
     updateTrollVisual();
@@ -4440,6 +4862,33 @@ if (repairModal) {
     if (e.target === repairModal) closeRepairModal();
   });
 }
+if (messengerCancel) {
+  messengerCancel.addEventListener("click", closeMessengerModal);
+}
+if (messengerModal) {
+  messengerModal.addEventListener("click", event => {
+    if (event.target === messengerModal) {
+      closeMessengerModal();
+    }
+  });
+}
+if (messengerConfirm) {
+  messengerConfirm.addEventListener("click", () => {
+    if (!pendingMessengerInteraction) return;
+    const { playerIndex, messengerId } = pendingMessengerInteraction;
+    if (shouldRoutePrivateUiActionToHost(playerIndex)) {
+      emitPrivateUiActionToHost({
+        modalType: "messenger",
+        actionType: "confirm",
+        playerIndex,
+        payload: { messengerId }
+      });
+      closeMessengerModal();
+      return;
+    }
+    fillMessengerWithGold(playerIndex, messengerId);
+  });
+}
   if (repairConfirm) {
   repairConfirm.addEventListener("click", () => {
     if (shouldRoutePrivateUiActionToHost(repairPending?.playerIndex)) {
@@ -4470,6 +4919,11 @@ if (repairModal) {
 
 function openContextForKey(key, playerIndex) {
   if ((players[playerIndex]?.layer || WORLD_LAYER_UPPER) === WORLD_LAYER_UNDER) {
+    return;
+  }
+  const messenger = getMessengerAtKey(key);
+  if (messenger && messenger.targetPlayerIndex === playerIndex) {
+    openMessengerModal(messenger.id, playerIndex);
     return;
   }
   const [x, y] = key.split(",").map(Number);
@@ -6403,6 +6857,7 @@ const TURN_BLOCKING_MODALS = [
   () => kingGenerosityModal,
   () => hireModal,
   () => repairModal,
+  () => messengerModal,
   () => guardModal,
   () => robberModal,
   () => battleModal,
@@ -6497,6 +6952,7 @@ function completeTurnAdvance() {
   turnCounter += 1;
   tickWorldEvents();
   activateScheduledWorldEvents();
+  activateScheduledRoyalMessengerEvents();
   handleMageCellTimers();
   if (turnCounter === 150 && !worldDangerShown) {
     showWorldDangerModal();
@@ -6525,6 +6981,7 @@ function completeTurnAdvance() {
   advanceMercenaries();
   advanceThieves();
   advanceCutthroats();
+  advanceMessengers();
   movesRemaining = 0;
   lastRoll = null;
   lastRollText = "-";
@@ -7247,9 +7704,12 @@ function resetGameState() {
   lastBattleId = 0;
   testModeEnabled = false;
   scheduledWorldEvents = [];
+  scheduledRoyalMessengerTurns = [];
+  pendingRoyalMessengerEvents = 0;
   activeWorldEvents = {};
   worldEventModalQueue = [];
   closeWorldEventModal();
+  closeMessengerModal();
   kingAuctionState = normalizeKingAuctionState();
   kingAuctionDraftBids.fill("");
   closeKingAuctionModal();
@@ -7397,9 +7857,11 @@ function resetGameState() {
     mercenaries.length = 0;
     thieves.length = 0;
     cutthroats.length = 0;
+    messengers.length = 0;
   }
   thieves.length = 0;
   cutthroats.length = 0;
+  messengers.length = 0;
   cutthroatIdCounter = 1;
 
   Object.keys(castleOwnersByKey).forEach(key => {
@@ -7422,6 +7884,7 @@ function resetGameState() {
 
   mercenaryIdCounter = 1;
   thiefIdCounter = 1;
+  messengerIdCounter = 1;
   barbarianPhaseStarted = false;
   robberEvent = null;
 
@@ -7431,6 +7894,7 @@ function resetGameState() {
   if (typeof initRainbowSpawns === "function") initRainbowSpawns();
   if (typeof initPortalState === "function") initPortalState();
   initWorldEventSchedule();
+  initRoyalMessengerSchedule();
   initWormholeSpawns();
 
   if (typeof mageSlot !== "undefined") {
@@ -7516,6 +7980,7 @@ function relayout() {
 
 applyCellSize(BASE_CELL);
 initWorldEventSchedule();
+initRoyalMessengerSchedule();
 initWormholeSpawns();
 relayout();
 refreshVisibleWorld();
