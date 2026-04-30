@@ -140,7 +140,7 @@ const WORLD_EVENT_MAX_TURN = 300;
 const WORLD_EVENT_TRIGGER_CHANCE = 0.5;
 const WORLD_EVENT_GOLD_TAX_MULTIPLIER = 1.3;
 const WORLD_EVENT_TROLL_HUNT_GOLD_REWARD = 1000;
-const ROYAL_MESSENGER_MIN_TURN = 20;
+const ROYAL_MESSENGER_MIN_TURN = 100;
 const ROYAL_MESSENGER_MAX_TURN = 350;
 const ROYAL_MESSENGER_MIN_SPAWNS = 1;
 const ROYAL_MESSENGER_MAX_SPAWNS = 3;
@@ -809,7 +809,19 @@ function getWorldEventStatusLabel(eventKey) {
   if (eventKey === WORLD_EVENTS.masterJourney.key) return "Странствие Великого Мастера";
   if (eventKey === WORLD_EVENTS.kingConcern.key) return "Опасение короля";
   if (eventKey === WORLD_EVENTS.quarantine.key) return "Карантин";
+  if (eventKey === "fullMoon") return "Полнолуние";
   return "Событие";
+}
+
+function getExtraWorldEventStatusEntries() {
+  const entries = [];
+  if (fullMoonEventState && werewolfState) {
+    const remainingTurns = Math.max(0, (fullMoonEventState.expiresAtTurn || turnCounter) - turnCounter + 1);
+    if (remainingTurns > 0) {
+      entries.push(["fullMoon", { remainingTurns }]);
+    }
+  }
+  return entries;
 }
 
 function renderWorldEventStatus(playerIndex) {
@@ -818,7 +830,7 @@ function renderWorldEventStatus(playerIndex) {
   if (!root) return;
   const list = root.querySelector(".world-event-status-list");
   if (!list) return;
-  const activeEntries = Object.entries(activeWorldEvents)
+  const activeEntries = [...Object.entries(activeWorldEvents), ...getExtraWorldEventStatusEntries()]
     .filter(([, state]) => (state?.remainingTurns || 0) > 0 || (state?.turnsUntilActive || 0) > 0)
     .sort((a, b) => {
       const aValue = (a[1].turnsUntilActive || 0) > 0 ? a[1].turnsUntilActive : (a[1].remainingTurns || 0);
@@ -1471,6 +1483,59 @@ function clearMessengerCell(x, y) {
   setCellToInactive(x, y);
 }
 
+function clearTransientContentForMessengerSpawnKey(key) {
+  const [x, y] = key.split(",").map(Number);
+  if (treasure?.key === key) clearTreasure();
+  if (flowerArtifact?.key === key) clearFlower();
+  if (cloverArtifact?.key === key) clearClover();
+  if (stoneByPos[key]) clearStone(key);
+  if (rainbowByPos[key]) clearRainbowStone(key);
+  if (typeof voidShardByPos !== "undefined" && voidShardByPos[key] && typeof clearVoidShard === "function") {
+    clearVoidShard(key);
+  }
+  const barbarianIndex = barbarianCells.findIndex(entry => entry.key === key);
+  if (barbarianIndex !== -1) {
+    barbarianCells.splice(barbarianIndex, 1);
+  }
+  const mercenaryIndex = mercenaries.findIndex(entry => entry.key === key);
+  if (mercenaryIndex !== -1) {
+    mercenaries.splice(mercenaryIndex, 1);
+  }
+  const thiefIndex = thieves.findIndex(entry => entry.key === key);
+  if (thiefIndex !== -1) {
+    thieves.splice(thiefIndex, 1);
+  }
+  const cutthroatIndex = cutthroats.findIndex(entry => entry.key === key);
+  if (cutthroatIndex !== -1) {
+    cutthroats.splice(cutthroatIndex, 1);
+  }
+  const caravanIndex = caravans.findIndex(entry => entry.key === key);
+  if (caravanIndex !== -1) {
+    removeCaravanAtIndex(caravanIndex);
+  }
+  if (werewolfState?.key === key) {
+    clearWerewolfCell(werewolfState.x, werewolfState.y);
+    werewolfState = null;
+    fullMoonEventState = null;
+  }
+  if (typeof trollState !== "undefined" && trollState?.active && trollState.key === key) {
+    clearTrollTokenAt(key);
+    trollState.active = false;
+    trollState.key = null;
+    trollState.prevKey = null;
+    trollState.turnsRemaining = 0;
+  }
+  if (specialByPos[key]) {
+    setCellToInactive(x, y);
+    return;
+  }
+  const cell = grid[key];
+  if (!cell) return;
+  if (!cell.classList.contains("inactive")) {
+    setCellToInactive(x, y);
+  }
+}
+
 function removeMessengerAtIndex(index) {
   const messenger = messengers[index];
   if (!messenger) return;
@@ -1653,10 +1718,14 @@ function startRoyalMessengerEvent() {
       playerIndex,
       castleKey: getFirstOwnedCastleKey(playerIndex)
     }));
+  ROYAL_MESSENGER_SPAWN_KEYS.forEach(key => {
+    clearTransientContentForMessengerSpawnKey(key);
+  });
   const availableSpawnKeys = ROYAL_MESSENGER_SPAWN_KEYS.filter(key => {
     const [x, y] = key.split(",").map(Number);
     if (x < 0 || x >= COLS || y < 0 || y >= ROWS) return false;
     if (messengers.some(entry => entry.key === key)) return false;
+    if (players.some(player => (player.layer || WORLD_LAYER_UPPER) === WORLD_LAYER_UPPER && `${player.x},${player.y}` === key)) return false;
     const cell = grid[key];
     return Boolean(cell) && cell.classList.contains("inactive");
   });
@@ -7152,7 +7221,7 @@ function showBattleModal(result, force = false) {
     lastBattleId += 1;
   }
   if (inMultiplayer && !canLocalSee) return;
-  if (inMultiplayer && performingRemoteAction && !sharedBattle) return;
+  if (inMultiplayer && performingRemoteAction && !sharedBattle && !force) return;
   if (inMultiplayer && !force && !isHost) return;
   const lines = buildBattleSummaryLines(result);
   battleSummary.innerHTML = lines.map(line => `<p>${line}</p>`).join("");
