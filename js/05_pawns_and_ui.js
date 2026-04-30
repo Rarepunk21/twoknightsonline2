@@ -2144,13 +2144,38 @@ function isPlayerProtectedFromWerewolf(playerIndex) {
   if (!player || (player.layer || WORLD_LAYER_UPPER) !== WORLD_LAYER_UPPER) return true;
   const playerKey = `${player.x},${player.y}`;
   if (guardKey && playerKey === guardKey) return true;
-  const castleKey = getCastleBaseKeyForPos(player.x, player.y);
-  return Boolean(castleKey && castleOwnersByKey[castleKey] === playerIndex);
+  return isWerewolfCastleProtectedKey(playerKey, playerIndex);
+}
+
+function getWerewolfCastleProtectionKeys(playerIndex) {
+  const castleKey = getFirstOwnedCastleKey(playerIndex);
+  if (!castleKey) return new Set();
+  const [castleX, castleY] = castleKey.split(",").map(Number);
+  const protectedKeys = new Set();
+  for (let y = castleY - 1; y <= castleY + 2; y += 1) {
+    for (let x = castleX - 1; x <= castleX + 2; x += 1) {
+      if (x < 0 || x >= COLS || y < 0 || y >= ROWS) continue;
+      protectedKeys.add(`${x},${y}`);
+    }
+  }
+  return protectedKeys;
+}
+
+function isWerewolfCastleProtectedKey(key, ownerPlayerIndex = null) {
+  if (typeof key !== "string") return false;
+  if (Number.isInteger(ownerPlayerIndex)) {
+    return getWerewolfCastleProtectionKeys(ownerPlayerIndex).has(key);
+  }
+  return players.some((player, playerIndex) => {
+    if (!player) return false;
+    return getWerewolfCastleProtectionKeys(playerIndex).has(key);
+  });
 }
 
 function isWerewolfStepAllowed(nx, ny, targetKey) {
   const key = `${nx},${ny}`;
   if (blockedCellKeys.has(key)) return false;
+  if (isWerewolfCastleProtectedKey(key)) return false;
   if (key === targetKey) return true;
   const cell = grid[key];
   if (!cell || !cell.classList.contains("inactive")) return false;
@@ -2278,6 +2303,21 @@ function getWerewolfApproachKey(playerIndex) {
       return leftDist - rightDist;
     });
   return candidates[0] || null;
+}
+
+function showWerewolfBattleResult(result) {
+  if (!result) return;
+  showBattleModal(result);
+  const inMultiplayer =
+    typeof socket !== "undefined" &&
+    socket &&
+    typeof onlineMatchStarted !== "undefined" &&
+    onlineMatchStarted;
+  if (!inMultiplayer) return;
+  if (!Number.isInteger(result.defenderIndex)) return;
+  if (typeof shouldDelegatePrivateUiToPlayer === "function" && shouldDelegatePrivateUiToPlayer(result.defenderIndex)) {
+    emitPrivateUiToPlayer(result.defenderIndex, "showBattleModal", { result });
+  }
 }
 
 function pickWerewolfTarget(werewolf) {
@@ -2488,7 +2528,7 @@ function advanceWerewolf() {
     if (targetIsReachable && werewolfState.key === targetKey) {
       battleResult = finalizeWerewolfBattle(werewolfState.targetPlayerIndex, { initiatedByWerewolf: true });
       if (battleResult) {
-        showBattleModal(battleResult);
+        showWerewolfBattleResult(battleResult);
       }
     }
   }
