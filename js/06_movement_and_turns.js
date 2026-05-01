@@ -1,7 +1,7 @@
 ﻿// ────────────────────────────────────────
 //   ХОД ПО СОСЕДНИМ КЛЕТКАМ (вверх, вниз, влево, вправо)
 // ────────────────────────────────────────
-function attackWerewolfForCurrentPlayer(targetX, targetY, movePlayerToTarget = false) {
+function attackWerewolfForCurrentPlayer(targetX, targetY, movePlayerToTarget = false, manualOnly = false) {
   const currentPlayer = players[currentPlayerIndex];
   const werewolfTarget = getWerewolfAtKey(`${targetX},${targetY}`);
   if (!currentPlayer || !werewolfTarget) return false;
@@ -16,7 +16,7 @@ function attackWerewolfForCurrentPlayer(targetX, targetY, movePlayerToTarget = f
   if (battleResult) {
     showBattleModal(battleResult);
   }
-  requestTurnAdvance({ manualOnly: true });
+  requestTurnAdvance({ manualOnly });
   return true;
 }
 
@@ -74,8 +74,8 @@ game.addEventListener("click", e => {
     return;
   }
   if (gridX === currentPlayer.x && gridY === currentPlayer.y) {
-    if ((currentPlayer.layer || WORLD_LAYER_UPPER) === WORLD_LAYER_UPPER && movesRemaining > 0 && getWerewolfAtKey(key)) {
-      attackWerewolfForCurrentPlayer(gridX, gridY, false);
+    if ((currentPlayer.layer || WORLD_LAYER_UPPER) === WORLD_LAYER_UPPER && getWerewolfAtKey(key)) {
+      attackWerewolfForCurrentPlayer(gridX, gridY, false, false);
       return;
     }
     openContextForKey(key, currentPlayerIndex);
@@ -124,7 +124,7 @@ game.addEventListener("click", e => {
   }
   const werewolfTarget = getWerewolfAtKey(key);
   if (werewolfTarget) {
-    attackWerewolfForCurrentPlayer(gridX, gridY, true);
+    attackWerewolfForCurrentPlayer(gridX, gridY, true, false);
     return;
   }
   const caravanTarget = getCaravanAtKey(key);
