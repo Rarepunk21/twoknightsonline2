@@ -391,6 +391,7 @@ function buildState() {
     lastBattleId,
     pendingTurnAdvance,
     pendingTurnManualOnly,
+    pendingTurnRequiresManualConfirm: typeof pendingTurnRequiresManualConfirm === "boolean" ? pendingTurnRequiresManualConfirm : false,
     deferredPrivateTurnPlayerIndex,
     ballistaModePlayerIndex,
     bridgeModePlayerIndex,
@@ -704,6 +705,9 @@ function applyState(state) {
   const incomingBattleResult = state.lastBattleResult ?? lastBattleResult;
   pendingTurnAdvance = state.pendingTurnAdvance ?? pendingTurnAdvance;
   pendingTurnManualOnly = state.pendingTurnManualOnly ?? pendingTurnManualOnly;
+  if (typeof pendingTurnRequiresManualConfirm !== "undefined") {
+    pendingTurnRequiresManualConfirm = state.pendingTurnRequiresManualConfirm ?? pendingTurnRequiresManualConfirm;
+  }
   deferredPrivateTurnPlayerIndex = state.deferredPrivateTurnPlayerIndex ?? deferredPrivateTurnPlayerIndex;
   ballistaModePlayerIndex = Number.isInteger(state.ballistaModePlayerIndex) ? state.ballistaModePlayerIndex : null;
   bridgeModePlayerIndex = Number.isInteger(state.bridgeModePlayerIndex) ? state.bridgeModePlayerIndex : null;

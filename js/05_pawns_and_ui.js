@@ -8880,6 +8880,12 @@ function resetGameState() {
   pendingTurnAdvance = false;
   pendingTurnManualOnly = false;
   pendingTurnRequiresManualConfirm = false;
+  if (typeof deferredPrivateTurnPlayerIndex !== "undefined") {
+    deferredPrivateTurnPlayerIndex = null;
+  }
+  if (typeof currentPrivateUiPlayerIndex !== "undefined") {
+    currentPrivateUiPlayerIndex = null;
+  }
   reachableKeys = new Set();
 
   turnCounter = 0;
