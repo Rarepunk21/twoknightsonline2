@@ -151,11 +151,14 @@ function maybeAcknowledgeDeferredTurnBlock(source = "unknown") {
   if (typeof hasBlockingTurnModalOpen === "function" && hasBlockingTurnModalOpen()) return;
   if (typeof shouldRoutePrivateUiActionToHost !== "function" || !shouldRoutePrivateUiActionToHost(localPlayerIndex)) return;
   pushDebugLog(`deferredAckAuto:${source}:p${localPlayerIndex}`);
-  emitPrivateUiActionToHost({
+  const sent = emitPrivateUiActionToHost({
     modalType: "turnBlock",
     actionType: "close",
     playerIndex: localPlayerIndex
   });
+  if (sent) {
+    deferredPrivateTurnPlayerIndex = null;
+  }
 }
 
 function updatePanelTitles() {
@@ -730,10 +733,10 @@ function applyState(state) {
     syncPreparedBlockingModalTurn(currentPlayerIndex);
   }
   movesRemaining = state.movesRemaining ?? movesRemaining;
-  lastRoll = state.lastRoll ?? lastRoll;
-  lastRollText = state.lastRollText ?? lastRollText;
-  lastDie1 = state.lastDie1 ?? lastDie1;
-  lastDie2 = state.lastDie2 ?? lastDie2;
+  lastRoll = Object.prototype.hasOwnProperty.call(state, "lastRoll") ? state.lastRoll : lastRoll;
+  lastRollText = Object.prototype.hasOwnProperty.call(state, "lastRollText") ? state.lastRollText : lastRollText;
+  lastDie1 = Object.prototype.hasOwnProperty.call(state, "lastDie1") ? state.lastDie1 : lastDie1;
+  lastDie2 = Object.prototype.hasOwnProperty.call(state, "lastDie2") ? state.lastDie2 : lastDie2;
   extraTurnPending = state.extraTurnPending ?? extraTurnPending;
   extraTurnReason = state.extraTurnReason ?? extraTurnReason;
   justRolledDouble = state.justRolledDouble ?? justRolledDouble;
@@ -759,7 +762,11 @@ function applyState(state) {
   if (typeof pendingTurnRequiresManualConfirm !== "undefined") {
     pendingTurnRequiresManualConfirm = state.pendingTurnRequiresManualConfirm ?? pendingTurnRequiresManualConfirm;
   }
-  deferredPrivateTurnPlayerIndex = state.deferredPrivateTurnPlayerIndex ?? deferredPrivateTurnPlayerIndex;
+  if (Object.prototype.hasOwnProperty.call(state, "deferredPrivateTurnPlayerIndex")) {
+    deferredPrivateTurnPlayerIndex = Number.isInteger(state.deferredPrivateTurnPlayerIndex)
+      ? state.deferredPrivateTurnPlayerIndex
+      : null;
+  }
   ballistaModePlayerIndex = Number.isInteger(state.ballistaModePlayerIndex) ? state.ballistaModePlayerIndex : null;
   bridgeModePlayerIndex = Number.isInteger(state.bridgeModePlayerIndex) ? state.bridgeModePlayerIndex : null;
   if (typeof voidShardModePlayerIndex !== "undefined") {
@@ -1141,9 +1148,14 @@ function performPrivateUiAction(action) {
   const payload = action?.payload || {};
   if (modalType === "turnBlock" && actionType === "close") {
     pushDebugLog(`turnBlockCloseRecv:p${playerIndex}:defer=${deferredPrivateTurnPlayerIndex}`);
-    if (!Number.isInteger(playerIndex) || deferredPrivateTurnPlayerIndex === playerIndex) {
-      deferredPrivateTurnPlayerIndex = null;
+    const matchesDeferredPlayer =
+      !Number.isInteger(playerIndex) ||
+      deferredPrivateTurnPlayerIndex === playerIndex;
+    if (!matchesDeferredPlayer) {
+      pushDebugLog(`turnBlockCloseIgnored:p${playerIndex}:defer=${deferredPrivateTurnPlayerIndex}`);
+      return;
     }
+    deferredPrivateTurnPlayerIndex = null;
     if (typeof resumeTurnFlowAfterModalChange === "function") {
       resumeTurnFlowAfterModalChange();
     } else if (typeof refreshTurnControls === "function") {
