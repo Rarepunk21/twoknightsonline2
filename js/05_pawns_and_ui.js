@@ -887,6 +887,9 @@ function closeWorldEventModal() {
     }
   }
   if (!wasVisible && window.getComputedStyle(worldEventModal).display === "none") return;
+  if (typeof maybeAcknowledgeDeferredTurnBlock === "function") {
+    maybeAcknowledgeDeferredTurnBlock("closeWorldEventModal");
+  }
   resumeTurnFlowAfterModalChange();
 }
 

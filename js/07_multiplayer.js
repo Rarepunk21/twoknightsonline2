@@ -112,8 +112,24 @@ function updateDebugOverlay() {
 
 function markNetworkEvent(label) {
   lastNetworkEvent = label;
-  pushDebugLog(label);
+  if (label !== "emitState:tick") {
+    pushDebugLog(label);
+  }
   updateDebugOverlay();
+}
+
+function maybeAcknowledgeDeferredTurnBlock(source = "unknown") {
+  if (isHost || !onlineMatchStarted) return;
+  if (!Number.isInteger(localPlayerIndex)) return;
+  if (deferredPrivateTurnPlayerIndex !== localPlayerIndex) return;
+  if (typeof hasBlockingTurnModalOpen === "function" && hasBlockingTurnModalOpen()) return;
+  if (typeof shouldRoutePrivateUiActionToHost !== "function" || !shouldRoutePrivateUiActionToHost(localPlayerIndex)) return;
+  pushDebugLog(`deferredAckAuto:${source}:p${localPlayerIndex}`);
+  emitPrivateUiActionToHost({
+    modalType: "turnBlock",
+    actionType: "close",
+    playerIndex: localPlayerIndex
+  });
 }
 
 function updatePanelTitles() {
@@ -417,7 +433,9 @@ function emitStateNow(force = false) {
   if (!force && fingerprint === lastStateFingerprint) return;
   lastStateFingerprint = fingerprint;
   lastEmitAt = now;
-  pushDebugLog(`emitState:turn=${state.currentPlayerIndex} moves=${state.movesRemaining} force=${force}`);
+  if (force) {
+    pushDebugLog(`emitState:turn=${state.currentPlayerIndex} moves=${state.movesRemaining} force=${force}`);
+  }
   markNetworkEvent(`emitState:${force ? "force" : "tick"}`);
   socket.emit("hostState", state);
 }
@@ -948,6 +966,7 @@ function applyState(state) {
   if (typeof syncKingGenerosityModalVisibility === "function") {
     syncKingGenerosityModalVisibility();
   }
+  maybeAcknowledgeDeferredTurnBlock("applyState");
   if (incomingBattleId !== lastBattleId) {
     lastBattleId = incomingBattleId;
     lastBattleResult = incomingBattleResult;
