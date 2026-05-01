@@ -7994,6 +7994,9 @@ function prepareBlockingModalTurn(playerIndex) {
   pendingTurnAdvance = true;
   pendingTurnManualOnly = true;
   pendingTurnRequiresManualConfirm = false;
+  if (typeof pushDebugLog === "function") {
+    pushDebugLog(`modalPrepared:p${playerIndex}`);
+  }
   refreshTurnControls();
   if (typeof emitStateNow === "function" && typeof isHost !== "undefined" && isHost) {
     emitStateNow(true);
@@ -8039,6 +8042,11 @@ function resumeTurnFlowAfterModalChange() {
       actionType: "close",
       playerIndex: delegatedBlockPlayer
     });
+  }
+  if (typeof pushDebugLog === "function") {
+    pushDebugLog(
+      `modalResume:p${currentPlayerIndex}:pending=${pendingTurnAdvance}:prepared=${hasPreparedBlockingModalTurn()}:defer=${hasDeferredPrivateTurnBlock()}:blocking=${hasBlockingTurnModalOpen()}`
+    );
   }
   refreshTurnControls();
   if (gameEnded) return;
@@ -8183,8 +8191,16 @@ function tryFinishPendingTurn(manual = false) {
   if (pendingTurnRequiresManualConfirm && !manual) return false;
   if (!manual && pendingTurnManualOnly) return false;
   if (hasBlockingTurnModalOpen() || hasDeferredPrivateTurnBlock() || isKingAuctionBlockingGameplay() || isKingGenerosityBlockingGameplay()) {
+    if (typeof pushDebugLog === "function") {
+      pushDebugLog(
+        `turnAdvanceBlocked:p${currentPlayerIndex}:manual=${manual}:defer=${hasDeferredPrivateTurnBlock()}:blocking=${hasBlockingTurnModalOpen()}`
+      );
+    }
     refreshTurnControls();
     return false;
+  }
+  if (typeof pushDebugLog === "function") {
+    pushDebugLog(`turnAdvanceCommit:p${currentPlayerIndex}:manual=${manual}`);
   }
   completeTurnAdvance();
   return true;
@@ -8201,6 +8217,11 @@ function requestTurnAdvance(options = {}) {
     hasDeferredPrivateTurnBlock() ||
     isKingAuctionBlockingGameplay() ||
     isKingGenerosityBlockingGameplay();
+  if (typeof pushDebugLog === "function") {
+    pushDebugLog(
+      `turnAdvanceRequested:p${currentPlayerIndex}:manualOnly=${requiresManualConfirm}:pendingManualOnly=${pendingTurnManualOnly}`
+    );
+  }
   refreshTurnControls();
   if (!pendingTurnManualOnly) {
     tryFinishPendingTurn(false);
@@ -8714,6 +8735,9 @@ function scheduleAutoRoll() {
   }
   lastDie1 = null;
   lastDie2 = null;
+  if (typeof pushDebugLog === "function") {
+    pushDebugLog(`autoRollScheduled:p${currentPlayerIndex}`);
+  }
   autoRollTimer = setTimeout(() => {
     autoRollTimer = null;
     tryAutoRoll();
@@ -8724,9 +8748,25 @@ function tryAutoRoll() {
   if (typeof socket !== "undefined" && socket && !isHost) return;
   if (gameEnded) return;
   if (movesRemaining > 0) return;
-  if (isVoidShardModeActive()) return;
-  if (hasBlockingTurnModalOpen() || hasDeferredPrivateTurnBlock() || isKingAuctionBlockingGameplay() || isKingGenerosityBlockingGameplay()) return;
+  if (isVoidShardModeActive()) {
+    if (typeof pushDebugLog === "function") pushDebugLog(`autoRollBlocked:p${currentPlayerIndex}:voidShard`);
+    return;
+  }
+  const blockReasons = [];
+  if (hasBlockingTurnModalOpen()) blockReasons.push("modal");
+  if (hasDeferredPrivateTurnBlock()) blockReasons.push("defer");
+  if (isKingAuctionBlockingGameplay()) blockReasons.push("auction");
+  if (isKingGenerosityBlockingGameplay()) blockReasons.push("generosity");
+  if (blockReasons.length > 0) {
+    if (typeof pushDebugLog === "function") {
+      pushDebugLog(`autoRollBlocked:p${currentPlayerIndex}:${blockReasons.join(",")}`);
+    }
+    return;
+  }
   if (processRobberAmbushChance()) return;
+  if (typeof pushDebugLog === "function") {
+    pushDebugLog(`autoRollStart:p${currentPlayerIndex}`);
+  }
   doRoll();
 }
 
@@ -8768,6 +8808,9 @@ function doRoll() {
   const werewolfFangBonus = currentPlayer ? (currentPlayer.werewolfFangCount || 0) * 2 : 0;
   const bonus = stoneBonus + bootsBonus + werewolfFangBonus;
   const roll = die1 + die2 + bonus;
+  if (typeof pushDebugLog === "function") {
+    pushDebugLog(`rollResult:p${currentPlayerIndex}:${die1}+${die2}+${bonus}=${roll}`);
+  }
   lastRoll = roll;
   const bonusParts = [];
   if (stoneBonus > 0) bonusParts.push("1");

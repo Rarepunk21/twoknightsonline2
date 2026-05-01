@@ -52,13 +52,39 @@ let lastStateUpdateAt = 0;
 let lastHostActionAt = 0;
 let lastClientActionAt = 0;
 const debugLogEntries = [];
+let lastDebugMessage = "";
+let lastDebugMessageCount = 0;
 
 function debugNow() {
   return new Date().toLocaleTimeString("ru-RU", { hour12: false });
 }
 
+function isNoisyDebugMessage(message) {
+  const text = String(message || "").trim();
+  if (!text) return true;
+  return (
+    /^emitState:/.test(text) ||
+    /^stateUpdate:turn=/.test(text) ||
+    /^applyState:turn=/.test(text) ||
+    /^resumeState:turn=/.test(text) ||
+    /^(hostAction|performHostAction):private_ui_action$/.test(text) ||
+    /^(hostAction|performHostAction):dom_click$/.test(text) ||
+    /^hostActionIgnored:/.test(text)
+  );
+}
+
 function pushDebugLog(message) {
-  debugLogEntries.push(`[${debugNow()}] ${message}`);
+  const text = String(message || "").trim();
+  if (isNoisyDebugMessage(text)) return;
+  const now = debugNow();
+  if (text === lastDebugMessage && debugLogEntries.length > 0) {
+    lastDebugMessageCount += 1;
+    debugLogEntries[debugLogEntries.length - 1] = `[${now}] ${text} x${lastDebugMessageCount}`;
+    return;
+  }
+  lastDebugMessage = text;
+  lastDebugMessageCount = 1;
+  debugLogEntries.push(`[${now}] ${text}`);
   if (debugLogEntries.length > 120) {
     debugLogEntries.splice(0, debugLogEntries.length - 120);
   }
@@ -112,9 +138,8 @@ function updateDebugOverlay() {
 }
 
 function markNetworkEvent(label) {
-  if (label !== "emitState:tick") {
+  if (!isNoisyDebugMessage(label)) {
     lastNetworkEvent = label;
-    pushDebugLog(label);
   }
   updateDebugOverlay();
 }
@@ -435,9 +460,8 @@ function emitStateNow(force = false) {
   lastStateFingerprint = fingerprint;
   lastEmitAt = now;
   if (force) {
-    pushDebugLog(`emitState:turn=${state.currentPlayerIndex} moves=${state.movesRemaining} force=${force}`);
+    markNetworkEvent("statePushed");
   }
-  markNetworkEvent(`emitState:${force ? "force" : "tick"}`);
   socket.emit("hostState", state);
 }
 
@@ -699,7 +723,6 @@ function applyCastleOwnershipVisuals() {
 function applyState(state) {
   applyingRemoteState = true;
   lastStateUpdateAt = Date.now();
-  pushDebugLog(`applyState:turn=${state.currentPlayerIndex} moves=${state.movesRemaining}`);
   markNetworkEvent("applyState");
 
   currentPlayerIndex = state.currentPlayerIndex ?? currentPlayerIndex;
@@ -1060,10 +1083,10 @@ function performHostAction(action) {
   }
   performingRemoteAction = true;
   lastHostActionAt = Date.now();
-  if (action.type === "private_ui_action" || (action.type === "dom_click" && action.id === "endTurnBtn")) {
-    pushDebugLog(`performHostAction:${action.type}${action.id ? `:${action.id}` : ""}`);
+  if (action.type === "dom_click" && action.id === "endTurnBtn") {
+    pushDebugLog(`hostEndTurnClick:p${currentPlayerIndex}`);
+    markNetworkEvent("hostEndTurnClick");
   }
-  markNetworkEvent(`performHostAction:${action.type}`);
   if (action.type === "private_ui_action") {
     performPrivateUiAction(action);
     performingRemoteAction = false;
@@ -1521,12 +1544,13 @@ if (socket) {
   socket.on("hostAction", action => {
     if (!onlineMatchStarted) return;
     if (!isHost) {
-      pushDebugLog(`hostActionIgnored:${action.type}`);
       return;
     }
     lastHostActionAt = Date.now();
-    pushDebugLog(`hostAction:${action.type}`);
-    markNetworkEvent(`hostAction:${action.type}`);
+    if (action.type === "dom_click" && action.id === "endTurnBtn") {
+      pushDebugLog(`hostAction:endTurn:p${currentPlayerIndex}`);
+      markNetworkEvent("hostAction:endTurn");
+    }
     performHostAction(action);
     setTimeout(() => emitStateNow(true), 0);
   });
@@ -1535,16 +1559,12 @@ if (socket) {
     if (!onlineMatchStarted || isHost) return;
     if (!state || applyingRemoteState) return;
     lastStateUpdateAt = Date.now();
-    pushDebugLog(`stateUpdate:turn=${state.currentPlayerIndex} moves=${state.movesRemaining}`);
-    markNetworkEvent("stateUpdate");
     applyState(state);
   });
 
   socket.on("resumeState", state => {
     if (!state || applyingRemoteState) return;
     lastStateUpdateAt = Date.now();
-    pushDebugLog(`resumeState:turn=${state.currentPlayerIndex} moves=${state.movesRemaining}`);
-    markNetworkEvent("resumeState");
     applyState(state);
   });
 
