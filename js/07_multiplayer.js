@@ -1370,7 +1370,8 @@ function emitPrivateUiToPlayer(playerIndex, type, payload = {}) {
   if (!socket || !onlineMatchStarted || !isHost) return false;
   if (
     Number.isInteger(playerIndex) &&
-    /Modal$/.test(String(type))
+    /Modal$/.test(String(type)) &&
+    String(type) !== "showWorldEventModal"
   ) {
     deferredPrivateTurnPlayerIndex = playerIndex;
   }
@@ -1568,6 +1569,7 @@ if (socket) {
     markNetworkEvent(`privateUiRecv:${type}`);
     if (
       /Modal$/.test(type) &&
+      type !== "showWorldEventModal" &&
       Number.isInteger(targetPlayerIndex) &&
       targetPlayerIndex === localPlayerIndex
     ) {
