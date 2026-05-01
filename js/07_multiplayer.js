@@ -80,6 +80,11 @@ function updateDebugOverlay() {
     `movesRemaining=${typeof movesRemaining !== "undefined" ? movesRemaining : "-"}`,
     `lastDie=${typeof lastDie1 !== "undefined" ? lastDie1 : "-"}:${typeof lastDie2 !== "undefined" ? lastDie2 : "-"}`,
     `lastRoll=${typeof lastRoll !== "undefined" ? lastRoll : "-"}`,
+    `pendingTurnAdvance=${typeof pendingTurnAdvance !== "undefined" ? pendingTurnAdvance : "-"}`,
+    `pendingTurnManualOnly=${typeof pendingTurnManualOnly !== "undefined" ? pendingTurnManualOnly : "-"}`,
+    `pendingTurnRequiresManualConfirm=${typeof pendingTurnRequiresManualConfirm !== "undefined" ? pendingTurnRequiresManualConfirm : "-"}`,
+    `deferredPrivateTurnPlayerIndex=${deferredPrivateTurnPlayerIndex}`,
+    `delegatedTurnBlockPlayerIndex=${delegatedTurnBlockPlayerIndex}`,
     `applyingRemoteState=${applyingRemoteState}`,
     `performingRemoteAction=${performingRemoteAction}`,
     `lastEvent=${lastNetworkEvent}`,
@@ -1032,7 +1037,9 @@ function performHostAction(action) {
   }
   performingRemoteAction = true;
   lastHostActionAt = Date.now();
-  pushDebugLog(`performHostAction:${action.type}`);
+  if (action.type === "private_ui_action" || (action.type === "dom_click" && action.id === "endTurnBtn")) {
+    pushDebugLog(`performHostAction:${action.type}${action.id ? `:${action.id}` : ""}`);
+  }
   markNetworkEvent(`performHostAction:${action.type}`);
   if (action.type === "private_ui_action") {
     performPrivateUiAction(action);
@@ -1087,6 +1094,7 @@ function performPrivateUiAction(action) {
   const playerIndex = Number(action?.playerIndex);
   const payload = action?.payload || {};
   if (modalType === "turnBlock" && actionType === "close") {
+    pushDebugLog(`turnBlockCloseRecv:p${playerIndex}:defer=${deferredPrivateTurnPlayerIndex}`);
     if (!Number.isInteger(playerIndex) || deferredPrivateTurnPlayerIndex === playerIndex) {
       deferredPrivateTurnPlayerIndex = null;
     }
@@ -1347,8 +1355,8 @@ function emitPrivateUiToPlayer(playerIndex, type, payload = {}) {
   ) {
     deferredPrivateTurnPlayerIndex = playerIndex;
   }
+  pushDebugLog(`privateUi:${type}:p${playerIndex}:defer=${deferredPrivateTurnPlayerIndex}`);
   socket.emit("privateUi", { playerIndex, type, payload });
-  pushDebugLog(`privateUi:${type}:p${playerIndex}`);
   markNetworkEvent(`privateUi:${type}`);
   return true;
 }
@@ -1537,7 +1545,7 @@ if (socket) {
     const payload = message?.payload || {};
     const targetPlayerIndex = Number(message?.playerIndex);
     if (!type) return;
-    pushDebugLog(`privateUiRecv:${type}`);
+    pushDebugLog(`privateUiRecv:${type}:p${targetPlayerIndex}`);
     markNetworkEvent(`privateUiRecv:${type}`);
     if (
       /Modal$/.test(type) &&
@@ -1545,6 +1553,7 @@ if (socket) {
       targetPlayerIndex === localPlayerIndex
     ) {
       delegatedTurnBlockPlayerIndex = targetPlayerIndex;
+      pushDebugLog(`delegatedTurnBlockOpen:p${targetPlayerIndex}`);
     }
     if (type === "flashPrice" && typeof flashPrice === "function") {
       const selector = String(payload.selector || "").trim();
@@ -1765,7 +1774,9 @@ if (socket) {
       return;
     }
     lastClientActionAt = Date.now();
-    pushDebugLog(`clientAction:${action.type}`);
+    if (action.type === "dom_click" && action.id === "endTurnBtn") {
+      pushDebugLog(`clientAction:${action.type}:${action.id}`);
+    }
     markNetworkEvent(`clientAction:${action.type}`);
     e.preventDefault();
     e.stopImmediatePropagation();
@@ -1787,7 +1798,9 @@ if (socket) {
     }
     if (action) {
       lastHostActionAt = Date.now();
-      pushDebugLog(`hostLocalAction:${action.type}`);
+      if (action.type === "dom_click" && action.id === "endTurnBtn") {
+        pushDebugLog(`hostLocalAction:${action.type}:${action.id}`);
+      }
       markNetworkEvent(`hostLocalAction:${action.type}`);
       socket.emit("hostAction", action);
     }

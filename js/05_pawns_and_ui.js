@@ -7964,19 +7964,25 @@ function refreshTurnControls() {
 }
 
 function resumeTurnFlowAfterModalChange() {
-  if (
-    typeof currentPlayerIndex === "number" &&
+  const delegatedBlockPlayer =
     typeof delegatedTurnBlockPlayerIndex !== "undefined" &&
-    delegatedTurnBlockPlayerIndex === currentPlayerIndex &&
+    Number.isInteger(delegatedTurnBlockPlayerIndex)
+      ? delegatedTurnBlockPlayerIndex
+      : null;
+  if (
+    delegatedBlockPlayer !== null &&
     typeof shouldRoutePrivateUiActionToHost === "function" &&
-    shouldRoutePrivateUiActionToHost(currentPlayerIndex) &&
+    shouldRoutePrivateUiActionToHost(delegatedBlockPlayer) &&
     !hasBlockingTurnModalOpen()
   ) {
     delegatedTurnBlockPlayerIndex = null;
+    if (typeof pushDebugLog === "function") {
+      pushDebugLog(`turnBlockClose:p${delegatedBlockPlayer}`);
+    }
     emitPrivateUiActionToHost({
       modalType: "turnBlock",
       actionType: "close",
-      playerIndex: currentPlayerIndex
+      playerIndex: delegatedBlockPlayer
     });
   }
   refreshTurnControls();
