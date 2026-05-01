@@ -187,6 +187,7 @@ const FOG_OF_WAR_MAX_DURATION = 30;
 const FOG_OF_WAR_PLAYER_RADIUS = 4;
 const FOG_OF_WAR_ICON_COUNT = 3;
 const FOG_OF_WAR_EVENT_ENABLED = false;
+const ROYAL_TAX_EVENT_ENABLED = false;
 const HERO_BATTLE_INFLUENCE_LOSS = 50;
 const KING_CONCERN_ROLL_PENALTY = 3;
 const WORLD_EVENTS = {
@@ -735,6 +736,7 @@ function initWorldEventSchedule() {
   scheduledWorldEvents = [];
   activeWorldEvents = {};
   Object.values(WORLD_EVENTS).forEach(def => {
+    if (!ROYAL_TAX_EVENT_ENABLED && def.key === WORLD_EVENTS.royalTax.key) return;
     const rolls = Math.max(1, Number(def.rollsPerGame) || 1);
     for (let i = 0; i < rolls; i += 1) {
       if (Math.random() >= WORLD_EVENT_TRIGGER_CHANCE) continue;
@@ -2657,6 +2659,7 @@ function activateScheduledWorldEvents() {
       return;
     }
     if (event.key === WORLD_EVENTS.royalTax.key) {
+      if (!ROYAL_TAX_EVENT_ENABLED) return;
       applyRoyalTaxWorldEvent();
       return;
     }
