@@ -28,6 +28,7 @@ let lastEmitAt = 0;
 let performingRemoteAction = false;
 let currentPrivateUiPlayerIndex = null;
 let deferredPrivateTurnPlayerIndex = null;
+let delegatedTurnBlockPlayerIndex = null;
 let onlineGamePaused = false;
 
 const lobbyOverlay = document.getElementById("lobbyOverlay");
@@ -1535,9 +1536,17 @@ if (socket) {
   socket.on("privateUi", message => {
     const type = String(message?.type || "").trim();
     const payload = message?.payload || {};
+    const targetPlayerIndex = Number(message?.playerIndex);
     if (!type) return;
     pushDebugLog(`privateUiRecv:${type}`);
     markNetworkEvent(`privateUiRecv:${type}`);
+    if (
+      /Modal$/.test(type) &&
+      Number.isInteger(targetPlayerIndex) &&
+      targetPlayerIndex === localPlayerIndex
+    ) {
+      delegatedTurnBlockPlayerIndex = targetPlayerIndex;
+    }
     if (type === "flashPrice" && typeof flashPrice === "function") {
       const selector = String(payload.selector || "").trim();
       if (!selector) return;

@@ -7966,10 +7966,13 @@ function refreshTurnControls() {
 function resumeTurnFlowAfterModalChange() {
   if (
     typeof currentPlayerIndex === "number" &&
+    typeof delegatedTurnBlockPlayerIndex !== "undefined" &&
+    delegatedTurnBlockPlayerIndex === currentPlayerIndex &&
     typeof shouldRoutePrivateUiActionToHost === "function" &&
     shouldRoutePrivateUiActionToHost(currentPlayerIndex) &&
     !hasBlockingTurnModalOpen()
   ) {
+    delegatedTurnBlockPlayerIndex = null;
     emitPrivateUiActionToHost({
       modalType: "turnBlock",
       actionType: "close",
@@ -8890,6 +8893,9 @@ function resetGameState() {
   pendingTurnRequiresManualConfirm = false;
   if (typeof deferredPrivateTurnPlayerIndex !== "undefined") {
     deferredPrivateTurnPlayerIndex = null;
+  }
+  if (typeof delegatedTurnBlockPlayerIndex !== "undefined") {
+    delegatedTurnBlockPlayerIndex = null;
   }
   if (typeof currentPrivateUiPlayerIndex !== "undefined") {
     currentPrivateUiPlayerIndex = null;
