@@ -290,7 +290,6 @@ let mineLevel2OwnerPlayerIndex = null;
 let scheduledWorldEvents = [];
 let activeWorldEvents = {};
 let worldEventModalQueue = [];
-let worldEventAutoCloseTimer = null;
 let scheduledRoyalMessengerTurns = [];
 let pendingRoyalMessengerEvents = 0;
 let scheduledCaravanTurns = [];
@@ -872,22 +871,11 @@ function enqueueWorldEventModal(payload) {
   worldEventTitle.textContent = next.title || "СОБЫТИЕ";
   worldEventText.textContent = next.text || "";
   worldEventModal.style.display = "flex";
-  if (worldEventAutoCloseTimer) {
-    clearTimeout(worldEventAutoCloseTimer);
-  }
-  worldEventAutoCloseTimer = setTimeout(() => {
-    worldEventAutoCloseTimer = null;
-    closeWorldEventModal();
-  }, 1800);
   refreshTurnControls();
 }
 
 function closeWorldEventModal() {
   if (!worldEventModal) return;
-  if (worldEventAutoCloseTimer) {
-    clearTimeout(worldEventAutoCloseTimer);
-    worldEventAutoCloseTimer = null;
-  }
   const wasVisible = window.getComputedStyle(worldEventModal).display !== "none";
   worldEventModal.style.display = "none";
   if (worldEventModalQueue.length > 0) {
@@ -896,10 +884,6 @@ function closeWorldEventModal() {
       worldEventTitle.textContent = next.title || "СОБЫТИЕ";
       worldEventText.textContent = next.text || "";
       worldEventModal.style.display = "flex";
-      worldEventAutoCloseTimer = setTimeout(() => {
-        worldEventAutoCloseTimer = null;
-        closeWorldEventModal();
-      }, 1800);
     }
   }
   if (!wasVisible && window.getComputedStyle(worldEventModal).display === "none") return;
@@ -8012,14 +7996,8 @@ function resumeTurnFlowAfterModalChange() {
     return;
   }
   if (pendingTurnAdvance) {
-    if (pendingTurnRequiresManualConfirm) {
-      refreshTurnControls();
-      return;
-    }
-    pendingTurnManualOnly = false;
-    if (tryFinishPendingTurn(false)) {
-      return;
-    }
+    refreshTurnControls();
+    return;
   }
   scheduleAutoRoll();
 }
@@ -9121,19 +9099,3 @@ refreshVisibleWorld();
 updateTurnUI();
 window.addEventListener("resize", relayout);
 scheduleAutoRoll();
-
-const turnModalObserverTargets = TURN_BLOCKING_MODALS
-  .map(getModal => getModal())
-  .filter(Boolean);
-
-if (typeof MutationObserver !== "undefined" && turnModalObserverTargets.length) {
-  const turnModalObserver = new MutationObserver(() => {
-    resumeTurnFlowAfterModalChange();
-  });
-  turnModalObserverTargets.forEach(elem => {
-    turnModalObserver.observe(elem, {
-      attributes: true,
-      attributeFilter: ["style", "class"]
-    });
-  });
-}
