@@ -39,6 +39,7 @@ const players = [
     terrorRingCount: 0,
     rainbowStoneCount: 0,
     heroHiltCount: 0,
+    werewolfFangCount: 0,
     trapStunCount: 0,
     bridgeCount: 0,
     stoneBonusRollsRemaining: 0,
@@ -82,6 +83,7 @@ const players = [
     terrorRingCount: 0,
     rainbowStoneCount: 0,
     heroHiltCount: 0,
+    werewolfFangCount: 0,
     trapStunCount: 0,
     bridgeCount: 0,
     stoneBonusRollsRemaining: 0,
@@ -163,15 +165,18 @@ const CARAVAN_SUCCESS_INFLUENCE_REWARD = 50;
 const CARAVAN_EMPTY_INFLUENCE_LOSS = 100;
 const FULL_MOON_MIN_TURN = 15;
 const FULL_MOON_MAX_TURN = 350;
+const FULL_MOON_MIN_SPAWNS = 1;
 const FULL_MOON_MAX_SPAWNS = 2;
 const FULL_MOON_MIN_DURATION = 15;
 const FULL_MOON_MAX_DURATION = 25;
+const FULL_MOON_WEREWOLF_SPAWN_DELAY = 3;
 const WEREWOLF_SPEED_MIN = 6;
 const WEREWOLF_SPEED_MAX = 9;
 const WEREWOLF_ATTACK_MIN = 20;
 const WEREWOLF_ATTACK_MAX = 35;
 const WEREWOLF_MAX_HEALTH = 75;
-const WEREWOLF_RETARGET_INTERVAL = 3;
+const WEREWOLF_MOVE_INTERVAL = 2;
+const WEREWOLF_RETARGET_INTERVAL = 4;
 const WEREWOLF_FORCED_TARGET_TURNS = 5;
 const FOG_OF_WAR_MIN_TURN = 3;
 const FOG_OF_WAR_MAX_TURN = 350;
@@ -613,12 +618,14 @@ const INVENTORY_ITEMS = [
   {key: "rainbow-stone", label: "Радужный камень", icon: "rainbow_stone.png", count: player => player.rainbowStoneCount || 0},
   {key: "troll-club", label: "Дубинка троллей", icon: "troll_club.png", count: player => player.trollClubCount || 0},
   {key: "hero-hilt", label: "Рукоять меча героя", icon: "hero_hilt.png", count: player => player.heroHiltCount || 0},
+  {key: "werewolf-fang", label: "Клык оборотня", icon: "werewolf_fang.png", count: player => player.werewolfFangCount || 0},
   {key: "sword", label: "Меч героя", icon: "sword.png", count: player => (player.hasSword ? 1 : 0)}
 ];
 
 const WORLD_LAYER_UPPER = "upper";
 const WORLD_LAYER_UNDER = "under";
 const UPPER_WORLD_BG = 'url("assets/map-plateau.jpg")';
+const FULL_MOON_UPPER_WORLD_BG = 'url("assets/backgrounds/full_moon_bg.png")';
 const UNDERWORLD_BG = 'url("assets/backgrounds/underworld_bg.png")';
 const WORMHOLE_ICON = { file: "wormhole.png", alt: "Червоточина" };
 const STAIRS_ICON = { file: "stairs.png", alt: "Лестница" };
@@ -687,7 +694,7 @@ function isCaravanEventActive() {
 
 function initFullMoonSchedule() {
   const picked = new Set();
-  const count = randomIntRange(0, FULL_MOON_MAX_SPAWNS);
+  const count = randomIntRange(FULL_MOON_MIN_SPAWNS, FULL_MOON_MAX_SPAWNS);
   while (picked.size < count) {
     picked.add(randomIntRange(FULL_MOON_MIN_TURN, FULL_MOON_MAX_TURN));
   }
@@ -815,7 +822,7 @@ function getWorldEventStatusLabel(eventKey) {
 
 function getExtraWorldEventStatusEntries() {
   const entries = [];
-  if (fullMoonEventState && werewolfState) {
+  if (fullMoonEventState) {
     const remainingTurns = Math.max(0, (fullMoonEventState.expiresAtTurn || turnCounter) - turnCounter + 1);
     if (remainingTurns > 0) {
       entries.push(["fullMoon", { remainingTurns }]);
@@ -2266,10 +2273,15 @@ function findWerewolfPath(startKey, targetKey, maxDepth = 160) {
   return null;
 }
 
-function chooseRandomWerewolfTarget(excludedPlayerIndex = null) {
+function chooseRandomWerewolfTarget(excludedPlayerIndex = null, requireAttackable = false) {
   const available = players
     .map((player, playerIndex) => ({ player, playerIndex }))
-    .filter(({ player, playerIndex }) => player && playerIndex !== excludedPlayerIndex && (player.layer || WORLD_LAYER_UPPER) === WORLD_LAYER_UPPER)
+    .filter(({ player, playerIndex }) => {
+      if (!player || playerIndex === excludedPlayerIndex) return false;
+      if ((player.layer || WORLD_LAYER_UPPER) !== WORLD_LAYER_UPPER) return false;
+      if (requireAttackable && isPlayerProtectedFromWerewolf(playerIndex)) return false;
+      return true;
+    })
     .map(({ playerIndex }) => playerIndex);
   if (!available.length) return null;
   return available[Math.floor(Math.random() * available.length)];
@@ -2322,12 +2334,23 @@ function showWerewolfBattleResult(result) {
 
 function pickWerewolfTarget(werewolf) {
   if (!werewolf) return;
+  if (Number.isInteger(werewolf.targetPlayerIndex) && isPlayerProtectedFromWerewolf(werewolf.targetPlayerIndex)) {
+    const alternativeTarget = chooseRandomWerewolfTarget(werewolf.targetPlayerIndex, true);
+    if (alternativeTarget !== null) {
+      werewolf.targetPlayerIndex = alternativeTarget;
+      werewolf.forcedTargetPlayerIndex = alternativeTarget;
+      werewolf.forcedTargetTurnsRemaining = 0;
+      werewolf.retargetTurnsRemaining = WEREWOLF_RETARGET_INTERVAL;
+      return;
+    }
+  }
   if (werewolf.forcedTargetTurnsRemaining > 0 && Number.isInteger(werewolf.forcedTargetPlayerIndex) && players[werewolf.forcedTargetPlayerIndex]) {
     werewolf.targetPlayerIndex = werewolf.forcedTargetPlayerIndex;
     return;
   }
   if (!Number.isInteger(werewolf.targetPlayerIndex) || werewolf.retargetTurnsRemaining <= 0 || !players[werewolf.targetPlayerIndex]) {
-    werewolf.targetPlayerIndex = chooseRandomWerewolfTarget();
+    const attackableTarget = chooseRandomWerewolfTarget(null, true);
+    werewolf.targetPlayerIndex = attackableTarget ?? chooseRandomWerewolfTarget();
     werewolf.retargetTurnsRemaining = WEREWOLF_RETARGET_INTERVAL;
   }
 }
@@ -2359,13 +2382,24 @@ function endFullMoonEvent() {
 function tryStartPendingFullMoonEvent() {
   if (pendingFullMoonEvents <= 0) return false;
   if (isFullMoonEventActive()) return false;
-  const eligibleKeys = getFullMoonSpawnEligibleKeys();
-  if (!eligibleKeys.length) return false;
   pendingFullMoonEvents -= 1;
   announceFullMoonEvent();
+  const duration = randomIntRange(FULL_MOON_MIN_DURATION, FULL_MOON_MAX_DURATION);
+  fullMoonEventState = {
+    duration,
+    spawnAtTurn: turnCounter + FULL_MOON_WEREWOLF_SPAWN_DELAY,
+    expiresAtTurn: turnCounter + duration - 1
+  };
+  return true;
+}
+
+function trySpawnWerewolfForFullMoon() {
+  if (!fullMoonEventState || werewolfState) return false;
+  if (turnCounter < (fullMoonEventState.spawnAtTurn || 0)) return false;
+  const eligibleKeys = getFullMoonSpawnEligibleKeys();
+  if (!eligibleKeys.length) return false;
   const key = eligibleKeys[Math.floor(Math.random() * eligibleKeys.length)];
   const [x, y] = key.split(",").map(Number);
-  const duration = randomIntRange(FULL_MOON_MIN_DURATION, FULL_MOON_MAX_DURATION);
   werewolfState = {
     key,
     x,
@@ -2374,11 +2408,8 @@ function tryStartPendingFullMoonEvent() {
     targetPlayerIndex: null,
     retargetTurnsRemaining: 0,
     forcedTargetPlayerIndex: null,
-    forcedTargetTurnsRemaining: 0
-  };
-  fullMoonEventState = {
-    duration,
-    expiresAtTurn: turnCounter + duration - 1
+    forcedTargetTurnsRemaining: 0,
+    moveCooldownTurnsRemaining: 0
   };
   setCellToWerewolf(x, y);
   return true;
@@ -2440,9 +2471,15 @@ function buildWerewolfBattleResult(playerIndex, options = {}) {
   if (!player || !werewolf) return null;
   const initialHealth = Math.max(0, Number(werewolf.health) || 0);
   const initialArmy = Math.max(0, player.pocket.army || 0);
+  const initialAttack = Math.max(0, player.attack || 0);
   const werewolfDamage = randomIntRange(WEREWOLF_ATTACK_MIN, WEREWOLF_ATTACK_MAX);
   const playerArmyLost = Math.min(initialArmy, werewolfDamage);
   player.pocket.army = Math.max(0, initialArmy - playerArmyLost);
+  let playerAttackPenalty = 0;
+  if (options.initiatedByWerewolf && initialArmy <= 0 && initialAttack > 0) {
+    playerAttackPenalty = 1;
+    player.attack = Math.max(0, initialAttack - 1);
+  }
   const playerAttackDamage = Math.max(0, player.attack || 0);
   werewolf.health = Math.max(0, werewolf.health - playerAttackDamage);
   let playerArmyDamage = 0;
@@ -2462,9 +2499,13 @@ function buildWerewolfBattleResult(playerIndex, options = {}) {
     werewolfHealthBefore: initialHealth,
     werewolfHealthAfter: Math.max(0, werewolf.health || 0),
     werewolfDamage,
+    playerAttackBefore: initialAttack,
     playerAttackDamage,
+    playerAttackPenalty,
+    playerAttackAfter: Math.max(0, player.attack || 0),
     playerArmyDamage,
-    initiatedByWerewolf: Boolean(options.initiatedByWerewolf)
+    initiatedByWerewolf: Boolean(options.initiatedByWerewolf),
+    fangAwarded: false
   };
 }
 
@@ -2482,6 +2523,14 @@ function finalizeWerewolfBattle(playerIndex, options = {}) {
   const result = buildWerewolfBattleResult(playerIndex, options);
   if (!result) return null;
   if (werewolfState && werewolfState.health <= 0) {
+    const player = players[playerIndex];
+    if (player) {
+      player.werewolfFangCount = (player.werewolfFangCount || 0) + 1;
+      player.attack = Math.max(0, (player.attack || 0) + 12);
+      result.fangAwarded = true;
+      result.playerAttackAfter = Math.max(0, player.attack || 0);
+      updatePlayerResources(playerIndex);
+    }
     endFullMoonEvent();
     tryStartPendingFullMoonEvent();
     return result;
@@ -2516,8 +2565,30 @@ function moveWerewolfTowardTarget() {
 }
 
 function advanceWerewolf() {
-  if (!werewolfState) {
+  if (!fullMoonEventState) {
     tryStartPendingFullMoonEvent();
+    return;
+  }
+  if (!werewolfState) {
+    trySpawnWerewolfForFullMoon();
+    if (!werewolfState) {
+      if (fullMoonEventState && turnCounter >= fullMoonEventState.expiresAtTurn) {
+        endFullMoonEvent();
+      }
+      if (!fullMoonEventState) {
+        tryStartPendingFullMoonEvent();
+      }
+      return;
+    }
+  }
+  if ((werewolfState.moveCooldownTurnsRemaining || 0) > 0) {
+    werewolfState.moveCooldownTurnsRemaining = Math.max(0, (werewolfState.moveCooldownTurnsRemaining || 0) - 1);
+    if (fullMoonEventState && turnCounter >= fullMoonEventState.expiresAtTurn) {
+      endFullMoonEvent();
+    }
+    if (!fullMoonEventState) {
+      tryStartPendingFullMoonEvent();
+    }
     return;
   }
   const targetPlayer = moveWerewolfTowardTarget();
@@ -2534,6 +2605,7 @@ function advanceWerewolf() {
   }
   if (werewolfState) {
     setCellToWerewolf(werewolfState.x, werewolfState.y);
+    werewolfState.moveCooldownTurnsRemaining = WEREWOLF_MOVE_INTERVAL - 1;
     if (werewolfState.skipTargetTimerTick) {
       werewolfState.skipTargetTimerTick = false;
     } else {
@@ -2643,6 +2715,10 @@ function getViewerWorldPlayerIndex() {
 function getVisibleWorldLayer() {
   const viewerIndex = getViewerWorldPlayerIndex();
   return players[viewerIndex]?.layer || WORLD_LAYER_UPPER;
+}
+
+function getUpperWorldBackground() {
+  return isFullMoonEventActive() ? FULL_MOON_UPPER_WORLD_BG : UPPER_WORLD_BG;
 }
 
 function isWithinVisionRadius(originX, originY, targetX, targetY, radius, diagonalAllowed = true) {
@@ -3041,7 +3117,7 @@ function refreshVisibleWorld() {
     game.style.backgroundImage = UNDERWORLD_BG;
     renderUnderworldView(viewerIndex);
   } else {
-    game.style.backgroundImage = UPPER_WORLD_BG;
+    game.style.backgroundImage = getUpperWorldBackground();
     renderUpperWorldView();
   }
   clearReachable();
@@ -7199,10 +7275,12 @@ function buildBattleSummaryLines(result) {
         `<strong>${result.initiatedByWerewolf ? "НАПАДЕНИЕ ОБОРОТНЯ" : "БОЙ С ОБОРОТНЕМ"}</strong>`,
         `${result.playerName}: Потерял ${result.playerArmyLost} войск`,
         `Оборотень нанёс ${result.werewolfDamage} урона по войскам`,
+        result.playerAttackPenalty > 0 ? `${result.playerName}: Потерял ${result.playerAttackPenalty} атаку навсегда` : null,
         `Атака героя: -${result.playerAttackDamage} здоровья оборотня`,
         `Войска героя: -${result.playerArmyDamage} здоровья оборотня`,
         `Здоровье оборотня: было ${result.werewolfHealthBefore}, осталось ${result.werewolfHealthAfter}`,
         `Войск в кармане осталось: ${result.playerArmyAfter}`,
+        result.fangAwarded ? `${result.playerName} получает артефакт "Клык оборотня" (+12 атаки, +2 к броску хода).` : null,
         result.werewolfHealthAfter <= 0 ? "Оборотень погиб." : "Оборотень выжил и продолжает охоту."
       ].filter(Boolean);
     }
@@ -8590,12 +8668,14 @@ function doRoll() {
   const stoneBonusActive = currentPlayer && currentPlayer.stoneBonusRollsRemaining > 0;
   const stoneBonus = stoneBonusActive ? 1 : 0;
   const bootsBonus = currentPlayer && (currentPlayer.bootsCount || 0) > 0 ? 3 : 0;
-  const bonus = stoneBonus + bootsBonus;
+  const werewolfFangBonus = currentPlayer ? (currentPlayer.werewolfFangCount || 0) * 2 : 0;
+  const bonus = stoneBonus + bootsBonus + werewolfFangBonus;
   const roll = die1 + die2 + bonus;
   lastRoll = roll;
   const bonusParts = [];
   if (stoneBonus > 0) bonusParts.push("1");
   if (bootsBonus > 0) bonusParts.push("3");
+  if (werewolfFangBonus > 0) bonusParts.push(String(werewolfFangBonus));
   lastRollText = bonusParts.length
     ? `${die1} + ${die2} + ${bonusParts.join(" + ")} = ${roll}`
     : `${die1} + ${die2} = ${roll}`;
@@ -8730,6 +8810,7 @@ function resetGameState() {
     player.terrorRingCount = 0;
     player.rainbowStoneCount = 0;
     player.heroHiltCount = 0;
+    player.werewolfFangCount = 0;
     player.trapStunCount = 0;
     player.bridgeCount = 0;
     player.stoneBonusRollsRemaining = 0;
