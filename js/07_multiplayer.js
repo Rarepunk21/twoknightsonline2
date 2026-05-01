@@ -1343,7 +1343,6 @@ function emitPrivateUiToPlayer(playerIndex, type, payload = {}) {
   if (!socket || !onlineMatchStarted || !isHost) return false;
   if (
     Number.isInteger(playerIndex) &&
-    playerIndex === currentPlayerIndex &&
     /Modal$/.test(String(type))
   ) {
     deferredPrivateTurnPlayerIndex = playerIndex;
