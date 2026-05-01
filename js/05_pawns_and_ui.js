@@ -1821,6 +1821,7 @@ function openMessengerModal(messengerId, playerIndex) {
   const messenger = getMessengerById(messengerId);
   const player = players[playerIndex];
   if (!messenger || !player || !messengerModal || !messengerConfirm) return;
+  prepareBlockingModalTurn(playerIndex);
   pendingMessengerInteraction = { messengerId, playerIndex };
   if (shouldDelegatePrivateUiToPlayer(playerIndex)) {
     emitPrivateUiToPlayer(playerIndex, "showMessengerModal", { messengerId, playerIndex });
@@ -4395,6 +4396,7 @@ game.addEventListener("mousedown", hideCellHoverTooltip);
 
 function openMageModal(slot, playerIndex) {
   if (!mageModal || !slot) return;
+  prepareBlockingModalTurn(playerIndex);
   if (shouldDelegatePrivateUiToPlayer(playerIndex)) {
     emitPrivateUiToPlayer(playerIndex, "showMageModal", { mageId: slot.id, playerIndex });
     return;
@@ -4519,6 +4521,7 @@ if (mageModal) {
 
 function openStoneModal(key, playerIndex) {
   if (!stoneModal) return;
+  prepareBlockingModalTurn(playerIndex);
   if (shouldDelegatePrivateUiToPlayer(playerIndex)) {
     emitPrivateUiToPlayer(playerIndex, "showStoneModal", { key, playerIndex });
     return;
@@ -4537,6 +4540,7 @@ function closeStoneModal() {
 }
 
 function openStoneResultModal(text, playerIndex = currentPlayerIndex) {
+  prepareBlockingModalTurn(playerIndex);
   if (shouldDelegatePrivateUiToPlayer(playerIndex)) {
     emitPrivateUiToPlayer(playerIndex, "showStoneResultModal", { text, playerIndex });
     return;
@@ -4553,6 +4557,7 @@ function closeStoneResultModal() {
 }
 
 function openTrollCaveModal(text, playerIndex = currentPlayerIndex) {
+  prepareBlockingModalTurn(playerIndex);
   if (shouldDelegatePrivateUiToPlayer(playerIndex)) {
     emitPrivateUiToPlayer(playerIndex, "showTrollCaveModal", { text, playerIndex });
     return;
@@ -4723,6 +4728,7 @@ function syncMasterModalState(playerIndex) {
 
 function openMasterModal(playerIndex) {
   if (!masterModal || !masterBuyHilt) return;
+  prepareBlockingModalTurn(playerIndex);
   if (shouldDelegatePrivateUiToPlayer(playerIndex)) {
     emitPrivateUiToPlayer(playerIndex, "showMasterModal", { playerIndex });
     return;
@@ -5236,6 +5242,7 @@ function openBarracks(playerIndex) {
     showPrivatePickupToastForPlayer(playerIndex, "Торговцы бастуют и не продают товары.");
     return;
   }
+  prepareBlockingModalTurn(playerIndex);
   if (shouldDelegatePrivateUiToPlayer(playerIndex)) {
     emitPrivateUiToPlayer(playerIndex, "showBarracksModal", { playerIndex });
     return;
@@ -5324,6 +5331,7 @@ function openLavka(playerIndex) {
     showPrivatePickupToastForPlayer(playerIndex, "Торговцы бастуют и не продают товары.");
     return;
   }
+  prepareBlockingModalTurn(playerIndex);
   if (shouldDelegatePrivateUiToPlayer(playerIndex)) {
     emitPrivateUiToPlayer(playerIndex, "showLavkaModal", { playerIndex });
     return;
@@ -5425,6 +5433,7 @@ function openWorkshop(playerIndex) {
     showPrivatePickupToastForPlayer(playerIndex, "Торговцы бастуют и не продают товары.");
     return;
   }
+  prepareBlockingModalTurn(playerIndex);
   if (shouldDelegatePrivateUiToPlayer(playerIndex)) {
     emitPrivateUiToPlayer(playerIndex, "showWorkshopModal", { playerIndex });
     return;
@@ -5731,6 +5740,7 @@ function spawnCutthroat(playerIndex) {
 }
 
 function openHire(playerIndex) {
+  prepareBlockingModalTurn(playerIndex);
   if (shouldDelegatePrivateUiToPlayer(playerIndex)) {
     hirePlayerIndex = playerIndex;
     emitPrivateUiToPlayer(playerIndex, "showHireModal", { playerIndex });
@@ -5842,6 +5852,7 @@ hireButtons.forEach(btn => {
 
 function openRepairModal(entry, playerIndex) {
   if (!entry || !repairModal || !repairConfirm) return;
+  prepareBlockingModalTurn(playerIndex);
   let cost = 0;
   let label = "ресурс";
   if (entry.featureKey === "lumber") {
@@ -6386,6 +6397,7 @@ function syncCityModalState(playerIndex) {
 }
 
 function openCity(playerIndex) {
+  prepareBlockingModalTurn(playerIndex);
   if (shouldDelegatePrivateUiToPlayer(playerIndex)) {
     emitPrivateUiToPlayer(playerIndex, "showCityModal", { playerIndex });
     return;
@@ -6519,6 +6531,7 @@ function updateGuardModalButtons(playerIndex, unlocked) {
 }
 
 function showGuardModalFor(playerIndex, x, y, unlocked) {
+  prepareBlockingModalTurn(playerIndex);
   if (shouldDelegatePrivateUiToPlayer(playerIndex)) {
     emitPrivateUiToPlayer(playerIndex, "showGuardModal", { playerIndex, x, y, unlocked: Boolean(unlocked) });
     return;
@@ -6530,9 +6543,12 @@ function showGuardModalFor(playerIndex, x, y, unlocked) {
 }
 
 function hideGuardModal() {
+  const wasVisible = guardModal && window.getComputedStyle(guardModal).display !== "none";
   guardModal.style.display = "none";
   pendingGuardMove = null;
   pendingGuardPlayerIndex = null;
+  if (!wasVisible) return;
+  resumeTurnFlowAfterModalChange();
 }
 
 function handleGuardDecision(type) {
@@ -7498,6 +7514,7 @@ function refreshCastleModal(key, playerIndex) {
 
   function showCastleModal(key, playerIndex) {
     if (!castleModal) return;
+    prepareBlockingModalTurn(playerIndex);
     castleModalKey = key;
     castleModalPlayerIndex = playerIndex;
     refreshCastleModal(key, playerIndex);
@@ -7517,9 +7534,12 @@ function refreshCastleModal(key, playerIndex) {
   }
 
   function hideCastleModal() {
+    const wasVisible = castleModal && window.getComputedStyle(castleModal).display !== "none";
     if (castleModal) castleModal.style.display = "none";
     castleModalKey = null;
     castleModalPlayerIndex = null;
+    if (!wasVisible) return;
+    resumeTurnFlowAfterModalChange();
   }
 
 function buyCastleFeature(featureKey) {
@@ -7943,6 +7963,22 @@ function hasBlockingTurnModalOpen() {
 function hasDeferredPrivateTurnBlock() {
   return typeof deferredPrivateTurnPlayerIndex === "number" &&
     deferredPrivateTurnPlayerIndex === currentPlayerIndex;
+}
+
+function prepareBlockingModalTurn(playerIndex) {
+  if (!Number.isInteger(playerIndex)) return;
+  if (playerIndex !== currentPlayerIndex) return;
+  if (autoRollTimer) {
+    clearTimeout(autoRollTimer);
+    autoRollTimer = null;
+  }
+  pendingTurnAdvance = true;
+  pendingTurnManualOnly = true;
+  pendingTurnRequiresManualConfirm = false;
+  refreshTurnControls();
+  if (typeof emitStateNow === "function" && typeof isHost !== "undefined" && isHost) {
+    emitStateNow(true);
+  }
 }
 
 function updateEndTurnButton() {
