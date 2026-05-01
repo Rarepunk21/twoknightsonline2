@@ -876,6 +876,7 @@ function enqueueWorldEventModal(payload) {
 
 function closeWorldEventModal() {
   if (!worldEventModal) return;
+  const wasVisible = window.getComputedStyle(worldEventModal).display !== "none";
   worldEventModal.style.display = "none";
   if (worldEventModalQueue.length > 0) {
     const next = worldEventModalQueue.shift();
@@ -885,6 +886,7 @@ function closeWorldEventModal() {
       worldEventModal.style.display = "flex";
     }
   }
+  if (!wasVisible && window.getComputedStyle(worldEventModal).display === "none") return;
   resumeTurnFlowAfterModalChange();
 }
 
@@ -943,8 +945,10 @@ function openKingAuctionModal(playerIndex = null) {
 
 function closeKingAuctionModal() {
   if (!kingAuctionModal) return;
+  const wasVisible = window.getComputedStyle(kingAuctionModal).display !== "none";
   kingAuctionModal.style.display = "none";
   kingAuctionViewerPlayerIndex = null;
+  if (!wasVisible) return;
   resumeTurnFlowAfterModalChange();
 }
 
@@ -1027,8 +1031,10 @@ function openKingGenerosityModal(playerIndex = null) {
 
 function closeKingGenerosityModal() {
   if (!kingGenerosityModal) return;
+  const wasVisible = window.getComputedStyle(kingGenerosityModal).display !== "none";
   kingGenerosityModal.style.display = "none";
   kingGenerosityViewerPlayerIndex = null;
+  if (!wasVisible) return;
   resumeTurnFlowAfterModalChange();
 }
 
@@ -1834,8 +1840,10 @@ function openMessengerModal(messengerId, playerIndex) {
 }
 
 function closeMessengerModal() {
+  const wasVisible = messengerModal && window.getComputedStyle(messengerModal).display !== "none";
   if (messengerModal) messengerModal.style.display = "none";
   pendingMessengerInteraction = null;
+  if (!wasVisible) return;
   resumeTurnFlowAfterModalChange();
 }
 
