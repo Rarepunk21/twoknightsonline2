@@ -1081,6 +1081,17 @@ function performPrivateUiAction(action) {
   const actionType = String(action?.actionType || "").trim();
   const playerIndex = Number(action?.playerIndex);
   const payload = action?.payload || {};
+  if (modalType === "turnBlock" && actionType === "close") {
+    if (!Number.isInteger(playerIndex) || deferredPrivateTurnPlayerIndex === playerIndex) {
+      deferredPrivateTurnPlayerIndex = null;
+    }
+    if (typeof resumeTurnFlowAfterModalChange === "function") {
+      resumeTurnFlowAfterModalChange();
+    } else if (typeof refreshTurnControls === "function") {
+      refreshTurnControls();
+    }
+    return;
+  }
   currentPrivateUiPlayerIndex = Number.isInteger(playerIndex) ? playerIndex : null;
   try {
     const clickBySelector = selector => {

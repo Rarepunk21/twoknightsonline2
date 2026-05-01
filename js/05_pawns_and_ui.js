@@ -7884,6 +7884,7 @@ let lastBattleId = 0;
 let gameWinnerIndex = null;
 let pendingTurnAdvance = false;
 let pendingTurnManualOnly = false;
+let pendingTurnRequiresManualConfirm = false;
 
 const TURN_BLOCKING_MODALS = [
   () => barracksModal,
@@ -7955,6 +7956,18 @@ function refreshTurnControls() {
 }
 
 function resumeTurnFlowAfterModalChange() {
+  if (
+    typeof currentPlayerIndex === "number" &&
+    typeof shouldRoutePrivateUiActionToHost === "function" &&
+    shouldRoutePrivateUiActionToHost(currentPlayerIndex) &&
+    !hasBlockingTurnModalOpen()
+  ) {
+    emitPrivateUiActionToHost({
+      modalType: "turnBlock",
+      actionType: "close",
+      playerIndex: currentPlayerIndex
+    });
+  }
   refreshTurnControls();
   if (gameEnded) return;
   if (typeof socket !== "undefined" && socket && !isHost) return;
@@ -7967,6 +7980,10 @@ function resumeTurnFlowAfterModalChange() {
     return;
   }
   if (pendingTurnAdvance) {
+    if (pendingTurnRequiresManualConfirm) {
+      refreshTurnControls();
+      return;
+    }
     pendingTurnManualOnly = false;
     if (tryFinishPendingTurn(false)) {
       return;
@@ -7978,6 +7995,7 @@ function resumeTurnFlowAfterModalChange() {
 function completeTurnAdvance() {
   pendingTurnAdvance = false;
   pendingTurnManualOnly = false;
+  pendingTurnRequiresManualConfirm = false;
   if (typeof deferredPrivateTurnPlayerIndex !== "undefined") {
     deferredPrivateTurnPlayerIndex = null;
   }
@@ -8095,6 +8113,7 @@ function completeTurnAdvance() {
 
 function tryFinishPendingTurn(manual = false) {
   if (!pendingTurnAdvance) return false;
+  if (pendingTurnRequiresManualConfirm && !manual) return false;
   if (!manual && pendingTurnManualOnly) return false;
   if (hasBlockingTurnModalOpen() || hasDeferredPrivateTurnBlock() || isKingAuctionBlockingGameplay() || isKingGenerosityBlockingGameplay()) {
     refreshTurnControls();
@@ -8104,9 +8123,16 @@ function tryFinishPendingTurn(manual = false) {
   return true;
 }
 
-function requestTurnAdvance() {
+function requestTurnAdvance(options = {}) {
+  const requiresManualConfirm = Boolean(options.manualOnly);
   pendingTurnAdvance = true;
-  pendingTurnManualOnly = hasBlockingTurnModalOpen() || hasDeferredPrivateTurnBlock() || isKingAuctionBlockingGameplay() || isKingGenerosityBlockingGameplay();
+  pendingTurnRequiresManualConfirm = requiresManualConfirm;
+  pendingTurnManualOnly =
+    requiresManualConfirm ||
+    hasBlockingTurnModalOpen() ||
+    hasDeferredPrivateTurnBlock() ||
+    isKingAuctionBlockingGameplay() ||
+    isKingGenerosityBlockingGameplay();
   refreshTurnControls();
   if (!pendingTurnManualOnly) {
     tryFinishPendingTurn(false);
@@ -8853,6 +8879,7 @@ function resetGameState() {
   justRolledDouble = false;
   pendingTurnAdvance = false;
   pendingTurnManualOnly = false;
+  pendingTurnRequiresManualConfirm = false;
   reachableKeys = new Set();
 
   turnCounter = 0;
