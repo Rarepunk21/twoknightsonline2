@@ -83,6 +83,7 @@ function updateDebugOverlay() {
     `pendingTurnAdvance=${typeof pendingTurnAdvance !== "undefined" ? pendingTurnAdvance : "-"}`,
     `pendingTurnManualOnly=${typeof pendingTurnManualOnly !== "undefined" ? pendingTurnManualOnly : "-"}`,
     `pendingTurnRequiresManualConfirm=${typeof pendingTurnRequiresManualConfirm !== "undefined" ? pendingTurnRequiresManualConfirm : "-"}`,
+    `blockingModalTurnPlayerIndex=${typeof blockingModalTurnPlayerIndex !== "undefined" ? blockingModalTurnPlayerIndex : "-"}`,
     `deferredPrivateTurnPlayerIndex=${deferredPrivateTurnPlayerIndex}`,
     `delegatedTurnBlockPlayerIndex=${delegatedTurnBlockPlayerIndex}`,
     `applyingRemoteState=${applyingRemoteState}`,
@@ -111,8 +112,8 @@ function updateDebugOverlay() {
 }
 
 function markNetworkEvent(label) {
-  lastNetworkEvent = label;
   if (label !== "emitState:tick") {
+    lastNetworkEvent = label;
     pushDebugLog(label);
   }
   updateDebugOverlay();
@@ -702,6 +703,9 @@ function applyState(state) {
   markNetworkEvent("applyState");
 
   currentPlayerIndex = state.currentPlayerIndex ?? currentPlayerIndex;
+  if (typeof syncPreparedBlockingModalTurn === "function") {
+    syncPreparedBlockingModalTurn(currentPlayerIndex);
+  }
   movesRemaining = state.movesRemaining ?? movesRemaining;
   lastRoll = state.lastRoll ?? lastRoll;
   lastRollText = state.lastRollText ?? lastRollText;

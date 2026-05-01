@@ -7913,6 +7913,7 @@ let gameWinnerIndex = null;
 let pendingTurnAdvance = false;
 let pendingTurnManualOnly = false;
 let pendingTurnRequiresManualConfirm = false;
+let blockingModalTurnPlayerIndex = null;
 
 const TURN_BLOCKING_MODALS = [
   () => barracksModal,
@@ -7965,6 +7966,23 @@ function hasDeferredPrivateTurnBlock() {
     deferredPrivateTurnPlayerIndex === currentPlayerIndex;
 }
 
+function hasPreparedBlockingModalTurn() {
+  if (!Number.isInteger(blockingModalTurnPlayerIndex)) return false;
+  if (blockingModalTurnPlayerIndex !== currentPlayerIndex) return false;
+  const inMultiplayer = typeof socket !== "undefined" && socket;
+  if (!inMultiplayer) return true;
+  if (typeof isHost !== "undefined" && isHost) return true;
+  return typeof localPlayerIndex === "number" &&
+    blockingModalTurnPlayerIndex === localPlayerIndex;
+}
+
+function syncPreparedBlockingModalTurn(turnPlayerIndex) {
+  if (!Number.isInteger(blockingModalTurnPlayerIndex)) return;
+  if (blockingModalTurnPlayerIndex !== turnPlayerIndex) {
+    blockingModalTurnPlayerIndex = null;
+  }
+}
+
 function prepareBlockingModalTurn(playerIndex) {
   if (!Number.isInteger(playerIndex)) return;
   if (playerIndex !== currentPlayerIndex) return;
@@ -7972,6 +7990,7 @@ function prepareBlockingModalTurn(playerIndex) {
     clearTimeout(autoRollTimer);
     autoRollTimer = null;
   }
+  blockingModalTurnPlayerIndex = playerIndex;
   pendingTurnAdvance = true;
   pendingTurnManualOnly = true;
   pendingTurnRequiresManualConfirm = false;
@@ -7984,14 +8003,15 @@ function prepareBlockingModalTurn(playerIndex) {
 function updateEndTurnButton() {
   if (!endTurnBtn) return;
   const hasDeferredRemoteModal = hasDeferredPrivateTurnBlock();
-  const showButton = pendingTurnAdvance || movesRemaining > 0 || hasDeferredRemoteModal;
+  const hasPreparedModalTurn = hasPreparedBlockingModalTurn();
+  const showButton = pendingTurnAdvance || hasPreparedModalTurn || movesRemaining > 0 || hasDeferredRemoteModal;
   endTurnBtn.style.display = showButton ? "block" : "none";
   endTurnBtn.disabled =
-    (!pendingTurnAdvance && !hasDeferredRemoteModal) ||
+    (!pendingTurnAdvance && !hasDeferredRemoteModal && !hasPreparedModalTurn) ||
     !canLocalPlayerAct() ||
     hasBlockingTurnModalOpen() ||
     gameEnded;
-  endTurnBtn.classList.toggle("turn-ready", pendingTurnAdvance && !endTurnBtn.disabled);
+  endTurnBtn.classList.toggle("turn-ready", (pendingTurnAdvance || hasPreparedModalTurn) && !endTurnBtn.disabled);
 }
 
 function refreshTurnControls() {
@@ -8031,7 +8051,7 @@ function resumeTurnFlowAfterModalChange() {
   ) {
     return;
   }
-  if (pendingTurnAdvance) {
+  if (pendingTurnAdvance || hasPreparedBlockingModalTurn()) {
     refreshTurnControls();
     return;
   }
@@ -8039,6 +8059,7 @@ function resumeTurnFlowAfterModalChange() {
 }
 
 function completeTurnAdvance() {
+  blockingModalTurnPlayerIndex = null;
   pendingTurnAdvance = false;
   pendingTurnManualOnly = false;
   pendingTurnRequiresManualConfirm = false;
@@ -8171,6 +8192,7 @@ function tryFinishPendingTurn(manual = false) {
 
 function requestTurnAdvance(options = {}) {
   const requiresManualConfirm = Boolean(options.manualOnly);
+  blockingModalTurnPlayerIndex = currentPlayerIndex;
   pendingTurnAdvance = true;
   pendingTurnRequiresManualConfirm = requiresManualConfirm;
   pendingTurnManualOnly =
@@ -8923,6 +8945,7 @@ function resetGameState() {
   extraTurnPending = false;
   extraTurnReason = null;
   justRolledDouble = false;
+  blockingModalTurnPlayerIndex = null;
   pendingTurnAdvance = false;
   pendingTurnManualOnly = false;
   pendingTurnRequiresManualConfirm = false;
