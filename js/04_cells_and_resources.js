@@ -1011,7 +1011,9 @@ function spawnResources() {
   const goldType = resourceTypes.find(type => type.key === "gold");
   const armyType = resourceTypes.find(type => type.key === "army");
   const resType = resourceTypes.find(type => type.key === "resources");
-  const typesToSpawn = [goldType, resType, armyType].filter(Boolean);
+  const baseTypes = [goldType, resType, armyType].filter(Boolean);
+  const isMorning = typeof getTimeOfDay === "function" && getTimeOfDay().key === "morning";
+  const typesToSpawn = isMorning ? [...baseTypes, ...baseTypes] : baseTypes;
   resourceSpawnDebug.requestedTypes = typesToSpawn.map(type => type.key);
   const pickedResourceKeys = pickResourceSpawnKeys(emptyKeys, typesToSpawn.length, RESOURCE_MIN_DISTANCE);
   resourceSpawnDebug.pickedKeys = pickedResourceKeys.slice();

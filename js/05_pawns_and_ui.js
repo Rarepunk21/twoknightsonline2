@@ -4771,7 +4771,11 @@ function getTimeOfDayInfoHtml() {
       "Цены в лавке, мастерской и казарме дороже на 15%.",
       "Замедление хода на 2 единицы от броска."
     ],
-    morning: ["Без особенностей."]
+    morning: [
+      "Ресурсы, золото и войска появляются в 2 раза больше.",
+      "Дополнительные +3 к броску кубиков.",
+      "Пещеры троллей пустые (троллей всё ещё можно победить)."
+    ]
   };
   const tod = getTimeOfDay();
   const lines = effects[tod.key] || ["Без особенностей."];
@@ -8714,7 +8718,8 @@ function finalizeMove(gridX, gridY) {
     if (!trollInCave) {
       const caveIndex = typeof getTrollCaveIndexByKey === "function" ? getTrollCaveIndexByKey(key) : -1;
       const alreadyLooted = caveIndex >= 0 && TROLL_CAVES && TROLL_CAVES[caveIndex]?.looted;
-      if (alreadyLooted) {
+      const isMorning = getTimeOfDay().key === "morning";
+      if (alreadyLooted || isMorning) {
         openTrollCaveModal("\u041f\u0435\u0449\u0435\u0440\u0430 \u043f\u0443\u0441\u0442\u0430.", currentPlayerIndex);
       } else {
         const lootText = rollTrollCaveLoot(currentPlayerIndex);
@@ -8990,7 +8995,8 @@ function doRoll() {
   const stoneBonus = stoneBonusActive ? 1 : 0;
   const bootsBonus = currentPlayer && (currentPlayer.bootsCount || 0) > 0 ? 3 : 0;
   const werewolfFangBonus = currentPlayer ? (currentPlayer.werewolfFangCount || 0) * 2 : 0;
-  const bonus = stoneBonus + bootsBonus + werewolfFangBonus;
+  const morningBonus = getTimeOfDay().key === "morning" ? 3 : 0;
+  const bonus = stoneBonus + bootsBonus + werewolfFangBonus + morningBonus;
   const roll = die1 + die2 + bonus;
   if (typeof pushDebugLog === "function") {
     pushDebugLog(`rollResult:p${currentPlayerIndex}:${die1}+${die2}+${bonus}=${roll}`);
@@ -9000,6 +9006,7 @@ function doRoll() {
   if (stoneBonus > 0) bonusParts.push("1");
   if (bootsBonus > 0) bonusParts.push("3");
   if (werewolfFangBonus > 0) bonusParts.push(String(werewolfFangBonus));
+  if (morningBonus > 0) bonusParts.push("3");
   lastRollText = bonusParts.length
     ? `${die1} + ${die2} + ${bonusParts.join(" + ")} = ${roll}`
     : `${die1} + ${die2} = ${roll}`;
