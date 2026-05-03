@@ -2754,6 +2754,17 @@ function getFogOfWarVisibleKeysForPlayer(playerIndex) {
       }
     }
   }
+  const castleKey = getFirstOwnedCastleKey(playerIndex);
+  if (castleKey) {
+    const [cx, cy] = castleKey.split(",").map(Number);
+    for (let y = 0; y < ROWS; y += 1) {
+      for (let x = 0; x < COLS; x += 1) {
+        if (isWithinVisionRadius(cx, cy, x, y, 2, false)) {
+          visible.add(`${x},${y}`);
+        }
+      }
+    }
+  }
   return visible;
 }
 
