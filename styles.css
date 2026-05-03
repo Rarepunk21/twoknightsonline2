@@ -186,6 +186,7 @@
       background: transparent;
     }
     .cell.fogged {
+      opacity: 1;
       background: transparent;
       border-color: transparent;
       color: transparent;
@@ -197,10 +198,14 @@
     .cell.fogged::after {
       content: "";
       position: absolute;
-      inset: 2%;
-      background: url("assets/icons/fog_1.png") center / 125% 125% no-repeat;
-      opacity: 0.58;
+      top: 50%;
+      left: 50%;
+      width: 162%;
+      height: 162%;
+      transform: translate(-50%, -50%);
+      background: url("assets/icons/fog_1.png") center / 100% 100% no-repeat;
       pointer-events: none;
+      z-index: 2;
       filter: drop-shadow(0 0 4px rgba(200, 220, 255, 0.18));
     }
     .cell.fogged[data-fog-variant="2"]::after {

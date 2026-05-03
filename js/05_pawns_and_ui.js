@@ -185,8 +185,8 @@ const FOG_OF_WAR_MAX_SPAWNS = 3;
 const FOG_OF_WAR_MIN_DURATION = 20;
 const FOG_OF_WAR_MAX_DURATION = 30;
 const FOG_OF_WAR_PLAYER_RADIUS = 4;
-const FOG_OF_WAR_ICON_COUNT = 3;
-const FOG_OF_WAR_EVENT_ENABLED = false;
+const FOG_OF_WAR_ICON_COUNT = 1;
+const FOG_OF_WAR_EVENT_ENABLED = true;
 const ROYAL_TAX_EVENT_ENABLED = false;
 const HERO_BATTLE_INFLUENCE_LOSS = 50;
 const KING_CONCERN_ROLL_PENALTY = 3;
@@ -713,12 +713,8 @@ function initFogOfWarSchedule() {
     fogOfWarState = null;
     return;
   }
-  const picked = new Set();
-  const count = randomIntRange(FOG_OF_WAR_MIN_SPAWNS, FOG_OF_WAR_MAX_SPAWNS);
-  while (picked.size < count) {
-    picked.add(randomIntRange(FOG_OF_WAR_MIN_TURN, FOG_OF_WAR_MAX_TURN));
-  }
-  scheduledFogOfWarTurns = Array.from(picked).sort((a, b) => a - b);
+  // TODO: revert to random schedule after testing
+  scheduledFogOfWarTurns = [10];
 }
 
 function isFogOfWarActive() {
@@ -1953,6 +1949,11 @@ function findCaravanPath(startKey, targetKey, maxDepth = 120) {
     { dx: 0, dy: 1 },
     { dx: 0, dy: -1 }
   ];
+  // Shuffle directions so the caravan doesn't always take the same path
+  for (let i = dirs.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [dirs[i], dirs[j]] = [dirs[j], dirs[i]];
+  }
   let depth = 0;
   while (queue.length && depth <= maxDepth) {
     const nextQueue = [];
@@ -7903,6 +7904,7 @@ let extraTurnReason = null;
 let justRolledDouble = false;
 let robberAmbushThisSession = false;
 let reachableKeys = new Set();
+let reachableOutlineSvg = null;
 let autoRollTimer = null;
 let doubleSound = null;
 let audioUnlocked = false;
@@ -8263,6 +8265,66 @@ function unlockAudio() {
 document.addEventListener("pointerdown", unlockAudio, { once: true });
 document.addEventListener("keydown", unlockAudio, { once: true });
 
+function getReachableOutlineSvg() {
+  if (reachableOutlineSvg) return reachableOutlineSvg;
+  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  svg.id = "reachableOutlineSvg";
+  svg.style.position = "absolute";
+  svg.style.top = "0";
+  svg.style.left = "0";
+  svg.style.pointerEvents = "none";
+  svg.style.zIndex = "3";
+  svg.style.overflow = "visible";
+  game.appendChild(svg);
+  reachableOutlineSvg = svg;
+  return svg;
+}
+
+function clearReachableOutline() {
+  if (!reachableOutlineSvg) return;
+  while (reachableOutlineSvg.firstChild) {
+    reachableOutlineSvg.removeChild(reachableOutlineSvg.firstChild);
+  }
+}
+
+function drawReachableOutline() {
+  clearReachableOutline();
+  if (reachableKeys.size === 0) return;
+  if (movesRemaining <= 0) return;
+  const svg = getReachableOutlineSvg();
+  svg.setAttribute("width", COLS * cellSize);
+  svg.setAttribute("height", ROWS * cellSize);
+  const player = players[currentPlayerIndex];
+  if (!player) return;
+  const color = player.color || "#ffffff";
+  const sw = Math.max(1, Math.round(cellSize * 0.04));
+  const keysWithPlayer = new Set(reachableKeys);
+  keysWithPlayer.add(`${player.x},${player.y}`);
+  keysWithPlayer.forEach(key => {
+    const [x, y] = key.split(",").map(Number);
+    const checks = [
+      { nx: x + 1, ny: y, x1: x + 1, y1: y, x2: x + 1, y2: y + 1 },
+      { nx: x - 1, ny: y, x1: x, y1: y, x2: x, y2: y + 1 },
+      { nx: x, ny: y + 1, x1: x, y1: y + 1, x2: x + 1, y2: y + 1 },
+      { nx: x, ny: y - 1, x1: x, y1: y, x2: x + 1, y2: y }
+    ];
+    for (let i = 0; i < 4; i += 1) {
+      const { nx, ny, x1, y1, x2, y2 } = checks[i];
+      if (!keysWithPlayer.has(`${nx},${ny}`)) {
+        const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+        line.setAttribute("x1", x1 * cellSize);
+        line.setAttribute("y1", y1 * cellSize);
+        line.setAttribute("x2", x2 * cellSize);
+        line.setAttribute("y2", y2 * cellSize);
+        line.setAttribute("stroke", color);
+        line.setAttribute("stroke-width", sw);
+        line.setAttribute("stroke-linecap", "round");
+        svg.appendChild(line);
+      }
+    }
+  });
+}
+
 function clearReachable() {
   document.querySelectorAll(".cell.reachable").forEach(cell => {
     cell.classList.remove("reachable");
@@ -8272,6 +8334,7 @@ function clearReachable() {
     if (cell) cell.classList.remove("reachable");
   });
   reachableKeys.clear();
+  clearReachableOutline();
 }
 
 const MOVES_DIRS = [
@@ -8317,6 +8380,7 @@ function showReachable() {
         queue.push({x: nx, y: ny, steps: steps + 1});
       }
     }
+    drawReachableOutline();
     return;
   }
   const queue = [{x: currentPlayer.x, y: currentPlayer.y, steps: 0}];
@@ -8352,6 +8416,7 @@ function showReachable() {
       queue.push({x: nx, y: ny, steps: steps + 1});
     }
   }
+  drawReachableOutline();
 }
 
 function finalizeMove(gridX, gridY) {
@@ -9002,6 +9067,7 @@ function resetGameState() {
     currentPrivateUiPlayerIndex = null;
   }
   reachableKeys = new Set();
+  reachableOutlineSvg = null;
 
   turnCounter = 0;
   if (typeof turnsUntilResources !== "undefined") {
