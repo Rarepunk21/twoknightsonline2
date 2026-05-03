@@ -4765,7 +4765,8 @@ function getTimeOfDayInfoHtml() {
     day: ["Без особенностей."],
     evening: [
       "Тролли имеют 20 войск (вместо 25).",
-      "Добыча в пещере троллей +60%.",
+      "Добыча в пещере троллей x2 (золото и ресурсы).",
+      "Шанс найти радужный камень, цветок и жетон увеличен в 2 раза.",
       "Скидка 13% в лавке, мастерской и казарме (не суммируется с другими скидками)."
     ],
     night: [
@@ -6983,13 +6984,14 @@ function rollTrollCaveLoot(playerIndex) {
   if (!player) return null;
   const scaleSteps = Math.floor((turnCounter || 0) / 75);
   const scale = 1 + (0.5 * scaleSteps);
-  const eveningMult = getTimeOfDay().key === "evening" ? 1.6 : 1;
+  const eveningMult = getTimeOfDay().key === "evening" ? 2 : 1;
   const gold = Math.floor(Math.random() * 301 * scale * eveningMult);
   const resources = Math.floor(Math.random() * 51 * scale * eveningMult);
   const influenceLoss = Math.floor(Math.random() * 51);
-  const gotRainbow = Math.random() < 0.05;
-  const gotFlower = Math.random() < 0.05;
-  const gotToken = Math.random() < 0.15;
+  const eveningChanceMult = getTimeOfDay().key === "evening" ? 2 : 1;
+  const gotRainbow = Math.random() < 0.05 * eveningChanceMult;
+  const gotFlower = Math.random() < 0.05 * eveningChanceMult;
+  const gotToken = Math.random() < 0.15 * eveningChanceMult;
   player.pocket.gold += gold;
   player.pocket.resources += resources;
   player.resources.influence -= influenceLoss;
