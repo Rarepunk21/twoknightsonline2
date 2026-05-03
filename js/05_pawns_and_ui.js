@@ -625,7 +625,13 @@ const INVENTORY_ITEMS = [
 
 const WORLD_LAYER_UPPER = "upper";
 const WORLD_LAYER_UNDER = "under";
-const UPPER_WORLD_BG = 'url("assets/map-plateau.jpg")';
+const TIME_OF_DAY_CYCLE = [
+  { key: "day",     label: "День",   duration: 40, bg: 'url("assets/map-plateau.jpg")' },
+  { key: "evening", label: "Вечер",  duration: 15, bg: 'url("assets/backgrounds/evening_bg.png")' },
+  { key: "night",   label: "Ночь",   duration: 25, bg: 'url("assets/backgrounds/night_bg.png")' },
+  { key: "morning", label: "Утро",   duration: 15, bg: 'url("assets/backgrounds/morning_bg.png")' },
+];
+const TIME_OF_DAY_CYCLE_LENGTH = TIME_OF_DAY_CYCLE.reduce((sum, e) => sum + e.duration, 0);
 const FULL_MOON_UPPER_WORLD_BG = 'url("assets/backgrounds/full_moon_bg.png")';
 const UNDERWORLD_BG = 'url("assets/backgrounds/underworld_bg.png")';
 const WORMHOLE_ICON = { file: "wormhole.png", alt: "Червоточина" };
@@ -2741,8 +2747,19 @@ function getVisibleWorldLayer() {
   return players[viewerIndex]?.layer || WORLD_LAYER_UPPER;
 }
 
+function getTimeOfDay() {
+  const position = turnCounter % TIME_OF_DAY_CYCLE_LENGTH;
+  let accumulated = 0;
+  for (let i = 0; i < TIME_OF_DAY_CYCLE.length; i += 1) {
+    accumulated += TIME_OF_DAY_CYCLE[i].duration;
+    if (position < accumulated) return TIME_OF_DAY_CYCLE[i];
+  }
+  return TIME_OF_DAY_CYCLE[0];
+}
+
 function getUpperWorldBackground() {
-  return isFullMoonEventActive() ? FULL_MOON_UPPER_WORLD_BG : UPPER_WORLD_BG;
+  if (isFullMoonEventActive()) return FULL_MOON_UPPER_WORLD_BG;
+  return getTimeOfDay().bg;
 }
 
 function isWithinVisionRadius(originX, originY, targetX, targetY, radius, diagonalAllowed = true) {
@@ -8791,6 +8808,10 @@ function updateTurnUI() {
   });
   if (turnCounterDisplay) {
     turnCounterDisplay.textContent = `СЧЁТЧИК ХОДОВ: ${turnCounter}`;
+  }
+  if (typeof timeOfDayDisplay !== "undefined" && timeOfDayDisplay) {
+    const tod = getTimeOfDay();
+    timeOfDayDisplay.textContent = `ВРЕМЯ СУТОК: ${tod.label}`;
   }
   if (devTurnInput) {
     devTurnInput.value = String(turnCounter);

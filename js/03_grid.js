@@ -51,6 +51,7 @@ const cityRewardButtons = Array.from(document.querySelectorAll("[data-city-rewar
 const cityExchangeButtons = Array.from(document.querySelectorAll("[data-city-exchange]"));
 const cityKillsInfo = document.getElementById("cityKillsInfo");
 const turnCounterDisplay = document.getElementById("turnCounter");
+const timeOfDayDisplay = document.getElementById("timeOfDay");
 const gameTimerDisplay = document.getElementById("gameTimer");
 const playerPanels = Array.from(document.querySelectorAll(".player-panel"));
 const inventoryPanels = Array.from(document.querySelectorAll(".inventory-panel"));
