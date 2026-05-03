@@ -2759,7 +2759,7 @@ function getFogOfWarVisibleKeysForPlayer(playerIndex) {
     const [cx, cy] = castleKey.split(",").map(Number);
     for (let y = 0; y < ROWS; y += 1) {
       for (let x = 0; x < COLS; x += 1) {
-        if (isWithinVisionRadius(cx, cy, x, y, 2, false)) {
+        if (isWithinVisionRadius(cx, cy, x, y, 2, true)) {
           visible.add(`${x},${y}`);
         }
       }
