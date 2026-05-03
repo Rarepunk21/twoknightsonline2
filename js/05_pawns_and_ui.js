@@ -8289,6 +8289,7 @@ function clearReachableOutline() {
 
 function drawReachableOutline() {
   clearReachableOutline();
+  if (currentPlayerIndex !== getViewerWorldPlayerIndex()) return;
   if (reachableKeys.size === 0) return;
   if (movesRemaining <= 0) return;
   const svg = getReachableOutlineSvg();
