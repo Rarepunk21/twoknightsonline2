@@ -3094,7 +3094,8 @@ function renderUpperWorldView() {
     cell.classList.remove("inactive");
     cell.classList.add("important", "barbarian");
     cell.textContent = "";
-    cell.title = `ВАРВАРЫ: ${entry.army} войск`;
+    const displayArmy = getTimeOfDay().key === "night" ? Math.ceil(entry.army * 1.5) : entry.army;
+    cell.title = `ВАРВАРЫ: ${displayArmy} войск`;
     cell.setAttribute("data-barbarian", "true");
     setCellIcon(cell, "barbarian_village.png", "Варвары");
   });
@@ -4767,7 +4768,7 @@ function getTimeOfDayInfoHtml() {
     ],
     night: [
       "Варвары сильнее на 50%.",
-      "Цены в лавке, мастерской и казарме дороже на 20%.",
+      "Цены в лавке, мастерской и казарме дороже на 15%.",
       "Замедление хода на 2 единицы от броска."
     ],
     morning: ["Без особенностей."]
@@ -5187,7 +5188,7 @@ function getDiscountedGoldCostForScope(player, baseCost, scope = "general") {
     cost = Math.round(cost * WORLD_EVENT_GOLD_TAX_MULTIPLIER);
   }
   if (getTimeOfDay().key === "night" && (scope === "barracks" || scope === "lavka" || scope === "workshop")) {
-    cost = Math.round(cost * 1.20);
+    cost = Math.round(cost * 1.15);
   }
   return Math.max(0, cost);
 }
