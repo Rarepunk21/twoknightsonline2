@@ -8414,6 +8414,7 @@ function clearReachableOutline() {
 
 function drawReachableOutline() {
   clearReachableOutline();
+  if (!isFogOfWarActive()) return;
   if (currentPlayerIndex !== getViewerWorldPlayerIndex()) return;
   if (reachableKeys.size === 0) return;
   if (movesRemaining <= 0) return;
