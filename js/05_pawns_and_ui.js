@@ -4195,6 +4195,7 @@ function getMageActionCost(action) {
   if (action === "slow") return MAGE_SLOW_COST;
   if (action === "no-double") return MAGE_NO_DOUBLE_COST;
   if (action === "poison") return MAGE_POISON_COST;
+  if (action === "fog") return 1000;
   if (action === "flower-gold") return 1000;
   return null;
 }
@@ -4231,6 +4232,10 @@ function updateMageActionButtons(playerIndex) {
         `<img class="price-icon" src="assets/icons/icon-gold.png" alt="Золото" />Цена: ${cost} золота + ` +
           `<img class="price-icon" src="assets/icons/mystic_flower.png" alt="Таинственный цветок" />Таинственный цветок`
       );
+    }
+    if (action === "fog" && isFogOfWarActive()) {
+      btn.disabled = true;
+      return;
     }
     const needsFlower = action === "poison";
     const hasFlower = (player.flowerCount || 0) > 0;
@@ -4500,6 +4505,17 @@ function handleMageAction(action) {
     const btn = mageActionButtons.find(b => b.dataset.mageAction === "poison");
     flashPrice(btn, cost, "assets/icons/icon-gold.png", "Золото");
     flashPrice(btn, 1, "assets/icons/mystic_flower.png", "Таинственный цветок");
+  } else if (action === "fog") {
+    if (isFogOfWarActive()) {
+      showMageToast("Туман войны уже активен.");
+      return;
+    }
+    announceFogOfWarEvent();
+    fogOfWarState = { duration: 20, expiresAtTurn: turnCounter + 19 };
+    applyFogOfWarMask();
+    showMageToast("Туман войны активирован на 20 ходов.");
+    const btn = mageActionButtons.find(b => b.dataset.mageAction === "fog");
+    flashPrice(btn, cost, "assets/icons/icon-gold.png", "Золото");
   }
   updatePlayerResources(pendingMagePlayerIndex);
 }
