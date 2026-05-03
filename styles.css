@@ -406,10 +406,10 @@
       overflow: visible;
     }
     .cell.barbarian {
-      background: #b5179e;
-      border-color: #7a1f7a;
+      background: transparent;
+      border-color: transparent;
       color: #f8f9fa;
-      box-shadow: 0 0 10px rgba(181, 23, 158, 0.5);
+      box-shadow: none;
       font-weight: bold;
     }
     .cell.has-icon {
