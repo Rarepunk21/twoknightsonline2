@@ -3094,7 +3094,9 @@ function renderUpperWorldView() {
     cell.classList.remove("inactive");
     cell.classList.add("important", "barbarian");
     cell.textContent = "";
-    const displayArmy = getTimeOfDay().key === "night" ? Math.ceil(entry.army * 1.5) : entry.army;
+    let displayArmy = entry.army;
+    if (getTimeOfDay().key === "night") displayArmy = Math.ceil(entry.army * 1.5);
+    else if (getTimeOfDay().key === "morning") displayArmy = Math.ceil(entry.army * 0.7);
     cell.title = `ВАРВАРЫ: ${displayArmy} войск`;
     cell.setAttribute("data-barbarian", "true");
     setCellIcon(cell, "barbarian_village.png", "Варвары");
@@ -4774,7 +4776,8 @@ function getTimeOfDayInfoHtml() {
     morning: [
       "Ресурсы, золото и войска появляются в 2 раза больше.",
       "Дополнительные +3 к броску кубиков.",
-      "Пещеры троллей пустые (троллей всё ещё можно победить)."
+      "Пещеры троллей пустые (троллей всё ещё можно победить).",
+      "Варвары слабее на 30%."
     ]
   };
   const tod = getTimeOfDay();
@@ -7033,6 +7036,8 @@ function resolveBarbarianBattle(playerIndex, barbarian) {
   let initialDefArmy = barbarian.army;
   if (getTimeOfDay().key === "night") {
     initialDefArmy = Math.ceil(initialDefArmy * 1.5);
+  } else if (getTimeOfDay().key === "morning") {
+    initialDefArmy = Math.ceil(initialDefArmy * 0.7);
   }
   let defenderRemaining = initialDefArmy;
   const heroStrike = Math.max(0, player.attack || 0);

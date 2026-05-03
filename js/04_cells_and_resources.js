@@ -1145,9 +1145,11 @@ function updateBarbarianCellVisual(entry) {
   cell.textContent = "";
   setCellIcon(cell, "barbarian_village.png", "Варвары");
   cell.setAttribute("data-barbarian", "true");
-  const displayArmy = (typeof getTimeOfDay === "function" && getTimeOfDay().key === "night")
-    ? Math.ceil(entry.army * 1.5)
-    : entry.army;
+  let displayArmy = entry.army;
+  if (typeof getTimeOfDay === "function") {
+    if (getTimeOfDay().key === "night") displayArmy = Math.ceil(entry.army * 1.5);
+    else if (getTimeOfDay().key === "morning") displayArmy = Math.ceil(entry.army * 0.7);
+  }
   cell.title = `ВАРВАРЫ: ${displayArmy} войск`;
 }
 
