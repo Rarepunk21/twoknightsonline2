@@ -713,8 +713,12 @@ function initFogOfWarSchedule() {
     fogOfWarState = null;
     return;
   }
-  // TODO: revert to random schedule after testing
-  scheduledFogOfWarTurns = [10];
+  const picked = new Set();
+  const count = randomIntRange(FOG_OF_WAR_MIN_SPAWNS, FOG_OF_WAR_MAX_SPAWNS);
+  while (picked.size < count) {
+    picked.add(randomIntRange(FOG_OF_WAR_MIN_TURN, FOG_OF_WAR_MAX_TURN));
+  }
+  scheduledFogOfWarTurns = Array.from(picked).sort((a, b) => a - b);
 }
 
 function isFogOfWarActive() {
@@ -815,6 +819,7 @@ function getWorldEventStatusLabel(eventKey) {
   if (eventKey === WORLD_EVENTS.kingConcern.key) return "Опасение короля";
   if (eventKey === WORLD_EVENTS.quarantine.key) return "Карантин";
   if (eventKey === "fullMoon") return "Полнолуние";
+  if (eventKey === "fogOfWar") return "Туман войны";
   return "Событие";
 }
 
@@ -824,6 +829,12 @@ function getExtraWorldEventStatusEntries() {
     const remainingTurns = Math.max(0, (fullMoonEventState.expiresAtTurn || turnCounter) - turnCounter + 1);
     if (remainingTurns > 0) {
       entries.push(["fullMoon", { remainingTurns }]);
+    }
+  }
+  if (fogOfWarState) {
+    const remainingTurns = Math.max(0, (fogOfWarState.expiresAtTurn || turnCounter) - turnCounter + 1);
+    if (remainingTurns > 0) {
+      entries.push(["fogOfWar", { remainingTurns }]);
     }
   }
   return entries;
@@ -2757,9 +2768,9 @@ function getFogOfWarVisibleKeysForPlayer(playerIndex) {
   const castleKey = getFirstOwnedCastleKey(playerIndex);
   if (castleKey) {
     const [cx, cy] = castleKey.split(",").map(Number);
-    for (let y = 0; y < ROWS; y += 1) {
-      for (let x = 0; x < COLS; x += 1) {
-        if (isWithinVisionRadius(cx, cy, x, y, 2, true)) {
+    for (let y = cy - 2; y <= cy + 3; y += 1) {
+      for (let x = cx - 2; x <= cx + 3; x += 1) {
+        if (x >= 0 && x < COLS && y >= 0 && y < ROWS) {
           visible.add(`${x},${y}`);
         }
       }
