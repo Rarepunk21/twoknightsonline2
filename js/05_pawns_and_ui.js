@@ -25,8 +25,10 @@ const players = [
     poisonCount: 0,
     invisPotionCount: 0,
     luckPotionCount: 0,
+    invulnPotionCount: 0,
     invisTurnsRemaining: 0,
     luckTurnsRemaining: 0,
+    invulnTurnsRemaining: 0,
     cloverCount: 0,
     trollClubCount: 0,
     flowerCount: 0,
@@ -69,8 +71,10 @@ const players = [
     poisonCount: 0,
     invisPotionCount: 0,
     luckPotionCount: 0,
+    invulnPotionCount: 0,
     invisTurnsRemaining: 0,
     luckTurnsRemaining: 0,
+    invulnTurnsRemaining: 0,
     cloverCount: 0,
     trollClubCount: 0,
     flowerCount: 0,
@@ -611,6 +615,7 @@ const INVENTORY_ITEMS = [
   {key: "poison", label: "Яд", icon: "poison.png", count: player => player.poisonCount || 0},
   {key: "potion-invis", label: "Зелье невидимости", icon: "potion_invis.png", count: player => player.invisPotionCount || 0, useAction: "potion-invis"},
   {key: "potion-luck", label: "Зелье удачи", icon: "potion_luck.png", count: player => player.luckPotionCount || 0, useAction: "potion-luck"},
+  {key: "potion-invuln", label: "Зелье неприкосновенности", icon: "potion_invis.png", count: player => player.invulnPotionCount || 0, useAction: "potion-invuln"},
   {key: "clover", label: "Клевер", icon: "clover.png", count: player => player.cloverCount || 0, useAction: "clover"},
   {key: "flower", label: "Таинственный цветок", icon: "mystic_flower.png", count: player => player.flowerCount || 0},
   {key: "void-shard", label: "Осколок пустоты", icon: "void_shard.png", count: player => player.voidShardCount || 0, useAction: "void-shard"},
@@ -643,6 +648,8 @@ const DAY_BUFF_POOL = [
   { key: "discount10",   label: "Скидка на яд и меч героя 10%" },
   { key: "freeRepair",   label: "Бесплатная починка сломанных клеток" },
   { key: "randomRes10",  label: "+10 ресурсов каждый ход случайному игроку" },
+  { key: "invulnPotion", label: "Зелье неприкосновенности в лавке (15 ходов, 750 золота)" },
+  { key: "carpenter",    label: "Плотник в мастерской: +50 брони замка за 1500 золота" },
 ];
 let activeDayBuffs = [];
 let prevTimeOfDayKey = null;
@@ -3288,6 +3295,12 @@ function applyPotion(playerIndex, type) {
     player.luckTurnsRemaining = Math.max(player.luckTurnsRemaining || 0, POTION_LUCK_TURNS);
     showPickupToast("Зелье удачи: +1.6 к ресурсам на 25 ходов.");
   }
+  if (type === "potion-invuln") {
+    if ((player.invulnPotionCount || 0) <= 0) return;
+    player.invulnPotionCount -= 1;
+    player.invulnTurnsRemaining = 15;
+    showPickupToast("Зелье неприкосновенности: противник и головорезы не атакуют 15 ходов.");
+  }
   if (type === "clover") {
     if ((player.cloverCount || 0) <= 0) return;
     player.cloverCount -= 1;
@@ -3981,6 +3994,7 @@ function updatePlayerResources(playerIndex) {
     if ((player.royalBlessingTurnsRemaining || 0) > 0) parts.push(`Благославление ${player.royalBlessingTurnsRemaining}`);
     if ((player.invisTurnsRemaining || 0) > 0) parts.push(`Невидимость ${player.invisTurnsRemaining}`);
     if ((player.luckTurnsRemaining || 0) > 0) parts.push(`Удача ${player.luckTurnsRemaining}`);
+    if ((player.invulnTurnsRemaining || 0) > 0) parts.push(`Неприкосновенность ${player.invulnTurnsRemaining}`);
     if ((player.stoneBonusRollsRemaining || 0) > 0) parts.push(`Ходы подряд ${player.stoneBonusRollsRemaining}`);
     positiveSpan.textContent = parts.length ? parts.join(", ") : "нет";
   }
@@ -5477,6 +5491,14 @@ function syncLavkaModalState(playerIndex) {
     }
     if (type === "potion-invis") setTradePrice(btn, goldPriceHtml(costPotion));
     if (type === "potion-luck") setTradePrice(btn, goldPriceHtml(costPotion));
+    if (type === "potion-invuln") {
+      btn.parentElement.style.display = isDayBuffActive("invulnPotion") ? "" : "none";
+      if (isDayBuffActive("invulnPotion")) {
+        const costInvuln = getDiscountedGoldCostForScope(player, 750, "lavka");
+        setTradePrice(btn, goldPriceHtml(costInvuln));
+        btn.disabled = gold < costInvuln;
+      }
+    }
   });
 }
 
@@ -5552,6 +5574,14 @@ lavkaButtons.forEach(btn => {
       showPickupToast("Зелье удачи добавлено в инвентарь.");
       flashPrice(btn, cost, "assets/icons/icon-gold.png", "Золото");
     }
+    if (type === "potion-invuln") {
+      const cost = getDiscountedGoldCostForScope(player, 750, "lavka");
+      if (getTotalGold(player) < cost) return;
+      spendGold(player, cost);
+      player.invulnPotionCount = (player.invulnPotionCount || 0) + 1;
+      showPickupToast("Зелье неприкосновенности добавлено в инвентарь.");
+      flashPrice(btn, cost, "assets/icons/icon-gold.png", "Золото");
+    }
     updatePlayerResources(lavkaPlayerIndex);
     openLavka(lavkaPlayerIndex);
   });
@@ -5571,6 +5601,14 @@ function syncWorkshopModalState(playerIndex) {
     if (type === "sword") btn.disabled = gold < costSword || player.hasWorkshopSword === true;
     if (type === "hero-sword") btn.disabled = gold < costHeroSword || player.hasSword === true || (player.rainbowStoneCount || 0) <= 0 || (player.heroHiltCount || 0) <= 0;
     if (type === "rainbow-infl") btn.disabled = (player.rainbowStoneCount || 0) <= 0;
+    if (type === "castle-armor") {
+      btn.parentElement.style.display = isDayBuffActive("carpenter") ? "" : "none";
+      if (isDayBuffActive("carpenter")) {
+        const costCastleArmor = getDiscountedGoldCostForScope(player, 1500, "workshop");
+        setTradePrice(btn, goldPriceHtml(costCastleArmor));
+        btn.disabled = gold < costCastleArmor;
+      }
+    }
     if (type === "armor") setTradePrice(btn, goldPriceHtml(costArmor));
     if (type === "sword") setTradePrice(btn, goldPriceHtml(costSword));
     if (type === "hero-sword") {
@@ -5658,6 +5696,18 @@ workshopButtons.forEach(btn => {
       player.resources.influence += 300;
       showPickupToast("Получено 300 влияния.");
       flashPrice(btn, 1, "assets/icons/rainbow_stone.png", "Радужный камень");
+    }
+    if (type === "castle-armor") {
+      const castleKey = getFirstOwnedCastleKey(workshopPlayerIndex);
+      if (!castleKey) return;
+      const cost = getDiscountedGoldCostForScope(player, 1500, "workshop");
+      if (getTotalGold(player) < cost) return;
+      spendGold(player, cost);
+      const stats = ensureCastleStats(castleKey);
+      stats.armorCurrent = (stats.armorCurrent || 0) + 50;
+      showPickupToast("Замок укреплен: +50 брони.");
+      flashPrice(btn, cost, "assets/icons/icon-gold.png", "Золото");
+      if (typeof updateCastleBadge === "function") updateCastleBadge(castleKey);
     }
     updatePlayerResources(workshopPlayerIndex);
     openWorkshop(workshopPlayerIndex);
@@ -6482,6 +6532,11 @@ function advanceCutthroats() {
     const targetKey = `${targetPlayer.x},${targetPlayer.y}`;
     moveCutthroat(cutthroat);
     if (cutthroat.key === targetKey) {
+      if ((targetPlayer.invulnTurnsRemaining || 0) > 0) {
+        clearCutthroatCell(cutthroat.x, cutthroat.y);
+        cutthroats.splice(i, 1);
+        continue;
+      }
       const beforeArmy = Math.max(0, targetPlayer.pocket.army || 0);
       const rawDamage = Math.floor(Math.random() * (CUTTHROAT_KILL_MAX - CUTTHROAT_KILL_MIN + 1)) + CUTTHROAT_KILL_MIN;
       const killed = Math.min(beforeArmy, rawDamage);
@@ -7194,6 +7249,10 @@ function resolveDragonBattle(playerIndex, dragonArmy = 75) {
 function resolveBattle(attackerIndex, defenderIndex, options = {}) {
   const attacker = players[attackerIndex];
   const defender = players[defenderIndex];
+  if ((defender.invulnTurnsRemaining || 0) > 0) {
+    showPickupToast("Противник под зельем неприкосновенности — атака невозможна.");
+    return null;
+  }
   const initialDefArmy = Math.max(0, defender.pocket.army);
   const initialAttArmy = Math.max(0, attacker.pocket.army);
 
@@ -8434,6 +8493,9 @@ function tickAllTimedBuffs() {
     if (player.luckTurnsRemaining > 0) {
       player.luckTurnsRemaining = Math.max(0, player.luckTurnsRemaining - 1);
     }
+    if (player.invulnTurnsRemaining > 0) {
+      player.invulnTurnsRemaining = Math.max(0, player.invulnTurnsRemaining - 1);
+    }
   });
 }
 
@@ -9199,8 +9261,10 @@ function resetGameState() {
     player.poisonCount = 0;
     player.invisPotionCount = 0;
     player.luckPotionCount = 0;
+    player.invulnPotionCount = 0;
     player.invisTurnsRemaining = 0;
     player.luckTurnsRemaining = 0;
+    player.invulnTurnsRemaining = 0;
     player.cloverCount = 0;
     player.trollClubCount = 0;
     player.flowerCount = 0;
