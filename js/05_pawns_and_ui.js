@@ -554,6 +554,9 @@ function getPlayerGoldDiscountRate(player, scope = "general") {
   if (getTimeOfDay().key === "evening" && (scope === "barracks" || scope === "lavka" || scope === "workshop")) {
     rate = Math.max(rate, 0.13);
   }
+  if (isDayBuffActive("discount10") && (scope === "poison" || scope === "workshop")) {
+    rate = Math.max(rate, 0.10);
+  }
   return rate;
 }
 
@@ -635,6 +638,14 @@ const TIME_OF_DAY_CYCLE = [
   { key: "morning", label: "Утро",   duration: 15, bg: 'url("assets/backgrounds/morning_bg.png")' },
 ];
 const TIME_OF_DAY_CYCLE_LENGTH = TIME_OF_DAY_CYCLE.reduce((sum, e) => sum + e.duration, 0);
+const DAY_BUFF_POOL = [
+  { key: "trollGold",    label: "Дополнительная награда за убийство троллей +700 золота" },
+  { key: "discount10",   label: "Скидка на яд и меч героя 10%" },
+  { key: "freeRepair",   label: "Бесплатная починка сломанных клеток" },
+  { key: "randomRes10",  label: "+10 ресурсов каждый ход случайному игроку" },
+];
+let activeDayBuffs = [];
+let prevTimeOfDayKey = null;
 const FULL_MOON_UPPER_WORLD_BG = 'url("assets/backgrounds/full_moon_bg.png")';
 const UNDERWORLD_BG = 'url("assets/backgrounds/underworld_bg.png")';
 const WORMHOLE_ICON = { file: "wormhole.png", alt: "Червоточина" };
@@ -2760,6 +2771,21 @@ function getTimeOfDay() {
   return TIME_OF_DAY_CYCLE[0];
 }
 
+function isDayBuffActive(buffKey) {
+  return activeDayBuffs.includes(buffKey);
+}
+
+function rollDayBuffs() {
+  const pool = DAY_BUFF_POOL.slice();
+  const result = [];
+  for (let i = 0; i < 2 && pool.length > 0; i += 1) {
+    const idx = Math.floor(Math.random() * pool.length);
+    result.push(pool[idx].key);
+    pool.splice(idx, 1);
+  }
+  activeDayBuffs = result;
+}
+
 function getUpperWorldBackground() {
   if (isFullMoonEventActive()) return FULL_MOON_UPPER_WORLD_BG;
   return getTimeOfDay().bg;
@@ -4256,7 +4282,8 @@ function updateMageActionButtons(playerIndex) {
       btn.disabled = (player.cloverCount || 0) <= 0;
       return;
     }
-    const cost = getDiscountedGoldCost(player, baseCost);
+    const scope = action === "poison" ? "poison" : "general";
+    const cost = getDiscountedGoldCostForScope(player, baseCost, scope);
     if (action === "slow" || action === "no-double") {
       setTradePrice(btn, goldPriceHtml(cost));
     }
@@ -4312,7 +4339,7 @@ function getCellHoverTooltipData(key) {
   if (mageSlot && mageSlot.active) {
     const slowCost = getDiscountedGoldCost(player, MAGE_SLOW_COST);
     const noDoubleCost = getDiscountedGoldCost(player, MAGE_NO_DOUBLE_COST);
-    const poisonCost = getDiscountedGoldCost(player, MAGE_POISON_COST);
+    const poisonCost = getDiscountedGoldCostForScope(player, MAGE_POISON_COST, "poison");
     return {
       title: "Маг",
       lines: [
@@ -4512,7 +4539,8 @@ function handleMageAction(action) {
     return;
   }
   const baseCost = getMageActionCost(action);
-  const cost = baseCost === null ? null : getDiscountedGoldCost(player, baseCost);
+  const scope = action === "poison" ? "poison" : "general";
+  const cost = baseCost === null ? null : getDiscountedGoldCostForScope(player, baseCost, scope);
   if (cost === null || getTotalGold(player) < cost) {
     showMageToast("Не хватает золота.");
     return;
@@ -4762,7 +4790,13 @@ if (trollCaveClose) {
 
 function getTimeOfDayInfoHtml() {
   const effects = {
-    day: ["Без особенностей."],
+    day: function() {
+      if (!activeDayBuffs.length) return ["Без особенностей.", "Бафы выбираются случайно каждый день."];
+      return activeDayBuffs.map(key => {
+        const def = DAY_BUFF_POOL.find(d => d.key === key);
+        return def ? def.label : key;
+      });
+    },
     evening: [
       "Тролли имеют 20 войск (вместо 25).",
       "Добыча в пещере троллей x2 (золото и ресурсы).",
@@ -4782,7 +4816,8 @@ function getTimeOfDayInfoHtml() {
     ]
   };
   const tod = getTimeOfDay();
-  const lines = effects[tod.key] || ["Без особенностей."];
+  const raw = effects[tod.key] || ["Без особенностей."];
+  const lines = typeof raw === "function" ? raw() : raw;
   const itemsHtml = lines.map(line => `— ${line}`).join("<br>");
   return `<div style="margin-bottom:8px;"><strong>${tod.label}</strong> (${tod.duration} ходов)<br>${itemsHtml}</div>`;
 }
@@ -5974,17 +6009,23 @@ function openRepairModal(entry, playerIndex) {
   prepareBlockingModalTurn(playerIndex);
   let cost = 0;
   let label = "ресурс";
-  if (entry.featureKey === "lumber") {
-    cost = 25;
-    label = "лесопилку";
-  }
+  if (!isDayBuffActive("freeRepair")) {
+    if (entry.featureKey === "lumber") {
+      cost = 25;
+      label = "лесопилку";
+    }
     if (entry.featureKey === "mine") {
       cost = 50;
-    label = "шахту";
-  }
+      label = "шахту";
+    }
     if (entry.featureKey === "clay") {
       cost = 75;
-    label = "глиняный карьер";
+      label = "глиняный карьер";
+    }
+  } else {
+    if (entry.featureKey === "lumber") label = "лесопилку";
+    else if (entry.featureKey === "mine") label = "шахту";
+    else if (entry.featureKey === "clay") label = "глиняный карьер";
   }
   repairPending = { key: entry.key || `${entry.x},${entry.y}`, cost, playerIndex, entry };
   if (shouldDelegatePrivateUiToPlayer(playerIndex)) {
@@ -6948,6 +6989,10 @@ function resolveTrollBattle(playerIndex, trollArmy) {
     if (isTrollHuntActive()) {
       eventGoldReward = WORLD_EVENT_TROLL_HUNT_GOLD_REWARD;
       player.pocket.gold += eventGoldReward;
+    }
+    if (isDayBuffActive("trollGold")) {
+      player.pocket.gold += 700;
+      eventGoldReward += 700;
     }
     if (!hadTrollClub) {
       player.attack += 8;
@@ -8206,6 +8251,22 @@ function completeTurnAdvance() {
   tickAllTimedBuffs();
   collectCastleIncomes(currentPlayerIndex);
   turnCounter += 1;
+  const currentTOD = getTimeOfDay().key;
+  if (currentTOD !== prevTimeOfDayKey && currentTOD === "day") {
+    rollDayBuffs();
+  }
+  if (currentTOD !== prevTimeOfDayKey && currentTOD !== "day") {
+    activeDayBuffs = [];
+  }
+  prevTimeOfDayKey = currentTOD;
+  if (isDayBuffActive("randomRes10")) {
+    const luckyIndex = Math.floor(Math.random() * players.length);
+    const luckyPlayer = players[luckyIndex];
+    if (luckyPlayer) {
+      luckyPlayer.pocket.resources = (luckyPlayer.pocket.resources || 0) + 10;
+      updatePlayerResources(luckyIndex);
+    }
+  }
   tickWorldEvents();
   activateScheduledWorldEvents();
   activateScheduledRoyalMessengerEvents();
@@ -9095,6 +9156,8 @@ function resetGameState() {
   scheduledFogOfWarTurns = [];
   pendingFogOfWarEvents = 0;
   fogOfWarState = null;
+  activeDayBuffs = [];
+  prevTimeOfDayKey = null;
   activeWorldEvents = {};
   worldEventModalQueue = [];
   closeWorldEventModal();
