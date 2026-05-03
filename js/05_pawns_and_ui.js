@@ -551,6 +551,9 @@ function getPlayerGoldDiscountRate(player, scope = "general") {
   if (player && (player.royalBlessingTurnsRemaining || 0) > 0 && isRoyalBlessingScope(scope)) {
     rate = Math.max(rate, ROYAL_BLESSING_DISCOUNT);
   }
+  if (getTimeOfDay().key === "evening" && (scope === "barracks" || scope === "lavka" || scope === "workshop")) {
+    rate = Math.max(rate, 0.15);
+  }
   return rate;
 }
 
@@ -4754,6 +4757,47 @@ if (trollCaveClose) {
   trollCaveClose.addEventListener("click", closeTrollCaveModal);
 }
 
+function getTimeOfDayInfoHtml() {
+  const effects = {
+    day: "Без особенностей.",
+    evening: "Тролли имеют 20 войск (вместо 25).<br>Добыча в пещере троллей +60%.<br>Скидка 15% в лавке, мастерской и казарме (не суммируется с другими скидками).",
+    night: "Без особенностей.",
+    morning: "Без особенностей."
+  };
+  return TIME_OF_DAY_CYCLE.map(tod => {
+    const isCurrent = getTimeOfDay().key === tod.key;
+    const tag = isCurrent ? '<span style="color:#ffb703;font-weight:bold;"> (текущее)</span>' : '';
+    return `<div style="margin-bottom:8px;"><strong>${tod.label}</strong> (${tod.duration} ходов)${tag}<br>${effects[tod.key]}</div>`;
+  }).join("");
+}
+
+function openTimeOfDayModal() {
+  if (!timeOfDayModal || !timeOfDayModalContent || !timeOfDayModalTitle) return;
+  const tod = getTimeOfDay();
+  timeOfDayModalTitle.textContent = `ВРЕМЯ СУТОК: ${tod.label}`;
+  timeOfDayModalContent.innerHTML = getTimeOfDayInfoHtml();
+  timeOfDayModal.style.display = "flex";
+}
+
+function closeTimeOfDayModal() {
+  if (timeOfDayModal) timeOfDayModal.style.display = "none";
+}
+
+if (timeOfDayModalClose) {
+  timeOfDayModalClose.addEventListener("click", closeTimeOfDayModal);
+}
+
+if (timeOfDayModal) {
+  timeOfDayModal.addEventListener("click", event => {
+    if (event.target === timeOfDayModal) closeTimeOfDayModal();
+  });
+}
+
+if (typeof timeOfDayDisplay !== "undefined" && timeOfDayDisplay) {
+  timeOfDayDisplay.style.cursor = "pointer";
+  timeOfDayDisplay.addEventListener("click", openTimeOfDayModal);
+}
+
 if (trollCaveModal) {
   trollCaveModal.addEventListener("click", event => {
     if (event.target === trollCaveModal) {
@@ -6921,8 +6965,9 @@ function rollTrollCaveLoot(playerIndex) {
   if (!player) return null;
   const scaleSteps = Math.floor((turnCounter || 0) / 75);
   const scale = 1 + (0.5 * scaleSteps);
-  const gold = Math.floor(Math.random() * 301 * scale);
-  const resources = Math.floor(Math.random() * 51 * scale);
+  const eveningMult = getTimeOfDay().key === "evening" ? 1.6 : 1;
+  const gold = Math.floor(Math.random() * 301 * scale * eveningMult);
+  const resources = Math.floor(Math.random() * 51 * scale * eveningMult);
   const influenceLoss = Math.floor(Math.random() * 51);
   const gotRainbow = Math.random() < 0.05;
   const gotFlower = Math.random() < 0.05;
@@ -8614,7 +8659,7 @@ function finalizeMove(gridX, gridY) {
     if (currentPlayer.invisTurnsRemaining > 0) {
       showPickupToast("Невидимость: тролли вас не атакуют.");
     } else {
-      const trollArmy = 25;
+      const trollArmy = getTimeOfDay().key === "evening" ? 20 : 25;
       const battleResult = resolveTrollBattle(currentPlayerIndex, trollArmy);
       if (battleResult && battleResult.winnerIndex === currentPlayerIndex) {
         if (typeof handleTrollDefeat === "function") {
