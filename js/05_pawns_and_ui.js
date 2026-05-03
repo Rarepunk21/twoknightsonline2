@@ -4759,13 +4759,23 @@ if (trollCaveClose) {
 
 function getTimeOfDayInfoHtml() {
   const effects = {
-    day: "Без особенностей.",
-    evening: "Тролли имеют 20 войск (вместо 25).<br>Добыча в пещере троллей +60%.<br>Скидка 13% в лавке, мастерской и казарме (не суммируется с другими скидками).",
-    night: "Без особенностей.",
-    morning: "Без особенностей."
+    day: ["Без особенностей."],
+    evening: [
+      "Тролли имеют 20 войск (вместо 25).",
+      "Добыча в пещере троллей +60%.",
+      "Скидка 13% в лавке, мастерской и казарме (не суммируется с другими скидками)."
+    ],
+    night: [
+      "Варвары сильнее на 50%.",
+      "Цены в лавке, мастерской и казарме дороже на 20%.",
+      "Замедление хода на 2 единицы от броска."
+    ],
+    morning: ["Без особенностей."]
   };
   const tod = getTimeOfDay();
-  return `<div style="margin-bottom:8px;"><strong>${tod.label}</strong> (${tod.duration} ходов)<br>${effects[tod.key]}</div>`;
+  const lines = effects[tod.key] || ["Без особенностей."];
+  const itemsHtml = lines.map(line => `— ${line}`).join("<br>");
+  return `<div style="margin-bottom:8px;"><strong>${tod.label}</strong> (${tod.duration} ходов)<br>${itemsHtml}</div>`;
 }
 
 function openTimeOfDayModal() {
@@ -5175,6 +5185,9 @@ function getDiscountedGoldCostForScope(player, baseCost, scope = "general") {
   }
   if (isWorldEventActive(WORLD_EVENTS.goldTax.key)) {
     cost = Math.round(cost * WORLD_EVENT_GOLD_TAX_MULTIPLIER);
+  }
+  if (getTimeOfDay().key === "night" && (scope === "barracks" || scope === "lavka" || scope === "workshop")) {
+    cost = Math.round(cost * 1.20);
   }
   return Math.max(0, cost);
 }
@@ -7012,7 +7025,10 @@ function resolveBarbarianBattle(playerIndex, barbarian) {
   const player = players[playerIndex];
   if (!player) return null;
   const initialAttArmy = Math.max(0, player.pocket.army);
-  const initialDefArmy = barbarian.army;
+  let initialDefArmy = barbarian.army;
+  if (getTimeOfDay().key === "night") {
+    initialDefArmy = Math.ceil(initialDefArmy * 1.5);
+  }
   let defenderRemaining = initialDefArmy;
   const heroStrike = Math.max(0, player.attack || 0);
   if (heroStrike > 0 && defenderRemaining > 0) {
@@ -8991,7 +9007,8 @@ function doRoll() {
   }
   const slowPenalty = currentPlayer && currentPlayer.slowTurnsRemaining > 0 ? MAGE_SLOW_PENALTY : 0;
   const kingConcernPenalty = getKingConcernPenalty(currentPlayerIndex);
-  const penalty = slowPenalty + kingConcernPenalty;
+  const nightPenalty = getTimeOfDay().key === "night" ? 2 : 0;
+  const penalty = slowPenalty + kingConcernPenalty + nightPenalty;
   let effectiveMoves = roll;
   if (penalty > 0 && currentPlayer) {
     effectiveMoves = Math.max(0, roll - penalty);
