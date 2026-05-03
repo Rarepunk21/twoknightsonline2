@@ -552,7 +552,7 @@ function getPlayerGoldDiscountRate(player, scope = "general") {
     rate = Math.max(rate, ROYAL_BLESSING_DISCOUNT);
   }
   if (getTimeOfDay().key === "evening" && (scope === "barracks" || scope === "lavka" || scope === "workshop")) {
-    rate = Math.max(rate, 0.15);
+    rate = Math.max(rate, 0.13);
   }
   return rate;
 }
@@ -4330,8 +4330,8 @@ function getCellHoverTooltipData(key) {
     return {
       title: "Казарма",
       lines: [
-        `50 войск — ${getDiscountedGoldCost(player, 2000)} золота`,
-        `130 войск — ${getDiscountedGoldCost(player, 4000)} золота`,
+        `50 войск — ${getDiscountedGoldCostForScope(player, 2000, "barracks")} золота`,
+        `130 войск — ${getDiscountedGoldCostForScope(player, 4000, "barracks")} золота`,
         "300 влияния — 100 войск"
       ]
     };
@@ -4342,9 +4342,9 @@ function getCellHoverTooltipData(key) {
       title: "Лавка",
       lines: [
         "300 влияния — 1000 ресурсов",
-        `Сапоги — ${getDiscountedGoldCost(player, 1500)} золота + радужный камень`,
-        `Зелье невидимости — ${getDiscountedGoldCost(player, 250)} золота`,
-        `Зелье удачи — ${getDiscountedGoldCost(player, 250)} золота`
+        `Сапоги — ${getDiscountedGoldCostForScope(player, 1500, "lavka")} золота + радужный камень`,
+        `Зелье невидимости — ${getDiscountedGoldCostForScope(player, 250, "lavka")} золота`,
+        `Зелье удачи — ${getDiscountedGoldCostForScope(player, 250, "lavka")} золота`
       ]
     };
   }
@@ -4353,9 +4353,9 @@ function getCellHoverTooltipData(key) {
     return {
       title: "Мастерская",
       lines: [
-        `Доспехи (+7 атаки) — ${getDiscountedGoldCost(player, 1500)} золота`,
-        `Меч (+12 атаки) — ${getDiscountedGoldCost(player, 2500)} золота`,
-        `Меч героя — ${getDiscountedGoldCost(player, 5000)} золота + радужный камень + рукоять`,
+        `Доспехи (+7 атаки) — ${getDiscountedGoldCostForScope(player, 1500, "workshop")} золота`,
+        `Меч (+12 атаки) — ${getDiscountedGoldCostForScope(player, 2500, "workshop")} золота`,
+        `Меч героя — ${getDiscountedGoldCostForScope(player, 5000, "workshop")} золота + радужный камень + рукоять`,
         "300 влияния — радужный камень"
       ]
     };
@@ -4760,15 +4760,12 @@ if (trollCaveClose) {
 function getTimeOfDayInfoHtml() {
   const effects = {
     day: "Без особенностей.",
-    evening: "Тролли имеют 20 войск (вместо 25).<br>Добыча в пещере троллей +60%.<br>Скидка 15% в лавке, мастерской и казарме (не суммируется с другими скидками).",
+    evening: "Тролли имеют 20 войск (вместо 25).<br>Добыча в пещере троллей +60%.<br>Скидка 13% в лавке, мастерской и казарме (не суммируется с другими скидками).",
     night: "Без особенностей.",
     morning: "Без особенностей."
   };
-  return TIME_OF_DAY_CYCLE.map(tod => {
-    const isCurrent = getTimeOfDay().key === tod.key;
-    const tag = isCurrent ? '<span style="color:#ffb703;font-weight:bold;"> (текущее)</span>' : '';
-    return `<div style="margin-bottom:8px;"><strong>${tod.label}</strong> (${tod.duration} ходов)${tag}<br>${effects[tod.key]}</div>`;
-  }).join("");
+  const tod = getTimeOfDay();
+  return `<div style="margin-bottom:8px;"><strong>${tod.label}</strong> (${tod.duration} ходов)<br>${effects[tod.key]}</div>`;
 }
 
 function openTimeOfDayModal() {

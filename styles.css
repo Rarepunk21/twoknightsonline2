@@ -793,6 +793,23 @@
       color: #e2e8f0;
       letter-spacing: 0.02em;
     }
+    #timeOfDay {
+      padding: 8px 16px;
+      background: linear-gradient(135deg, #c7923c, #e2b14c, #f0cc6a);
+      border: 2px solid #a07828;
+      border-radius: 10px;
+      font-size: 0.95rem;
+      font-weight: 700;
+      color: #1a1a1a;
+      letter-spacing: 0.03em;
+      cursor: pointer;
+      text-shadow: 0 1px 0 rgba(255, 255, 255, 0.2);
+      box-shadow: 0 2px 8px rgba(200, 150, 50, 0.35);
+      transition: box-shadow 0.2s;
+    }
+    #timeOfDay:hover {
+      box-shadow: 0 4px 14px rgba(220, 170, 60, 0.5);
+    }
     #gameTimer {
       padding: 8px 12px;
       background: rgba(17, 27, 45, 0.9);
