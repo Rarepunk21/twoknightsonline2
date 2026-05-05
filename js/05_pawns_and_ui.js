@@ -650,7 +650,7 @@ const DAY_BUFF_POOL = [
   { key: "randomRes10",  label: "+10 ресурсов каждый ход случайному игроку" },
   { key: "invulnPotion", label: "Зелье неприкосновенности в лавке (15 ходов, 750 золота)" },
   { key: "carpenter",    label: "Плотник в мастерской: +50 брони замка за 1500 золота" },
-  { key: "castleArmor",  label: "Замки теряют 30 брони (минимум 1)" },
+  { key: "castleArmor",  label: "Замки теряют 30 брони (только в течении дня)" },
   { key: "pickupFail",   label: "Шанс подбора -30% (ресурсы, золото, войска)" },
 ];
 let activeDayBuffs = [];
