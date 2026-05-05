@@ -650,9 +650,12 @@ const DAY_BUFF_POOL = [
   { key: "randomRes10",  label: "+10 ресурсов каждый ход случайному игроку" },
   { key: "invulnPotion", label: "Зелье неприкосновенности в лавке (15 ходов, 750 золота)" },
   { key: "carpenter",    label: "Плотник в мастерской: +50 брони замка за 1500 золота" },
+  { key: "castleArmor",  label: "Замки теряют 30 брони (минимум 1)" },
+  { key: "pickupFail",   label: "Шанс подбора -30% (ресурсы, золото, войска)" },
 ];
 let activeDayBuffs = [];
 let prevTimeOfDayKey = null;
+let castleArmorDayBuffReductions = {};
 const FULL_MOON_UPPER_WORLD_BG = 'url("assets/backgrounds/full_moon_bg.png")';
 const UNDERWORLD_BG = 'url("assets/backgrounds/underworld_bg.png")';
 const WORMHOLE_ICON = { file: "wormhole.png", alt: "Червоточина" };
@@ -2782,6 +2785,31 @@ function isDayBuffActive(buffKey) {
   return activeDayBuffs.includes(buffKey);
 }
 
+function applyCastleArmorDayBuff() {
+  castleArmorDayBuffReductions = {};
+  Object.keys(castleOwnersByKey).forEach(key => {
+    const owner = castleOwnersByKey[key];
+    if (typeof owner !== "number") return;
+    const stats = ensureCastleStats(key);
+    if (!stats) return;
+    const reduction = Math.min(stats.armorCurrent - 1, 30);
+    if (reduction > 0) {
+      stats.armorCurrent -= reduction;
+      castleArmorDayBuffReductions[key] = reduction;
+    }
+  });
+}
+
+function restoreCastleArmorFromDayBuff() {
+  Object.keys(castleArmorDayBuffReductions).forEach(key => {
+    const stats = typeof ensureCastleStats === "function" ? ensureCastleStats(key) : null;
+    if (stats) {
+      stats.armorCurrent = (stats.armorCurrent || 0) + (castleArmorDayBuffReductions[key] || 0);
+    }
+  });
+  castleArmorDayBuffReductions = {};
+}
+
 function rollDayBuffs() {
   const pool = DAY_BUFF_POOL.slice();
   const result = [];
@@ -4849,7 +4877,10 @@ function closeTimeOfDayModal() {
 }
 
 if (timeOfDayModalClose) {
-  timeOfDayModalClose.addEventListener("click", closeTimeOfDayModal);
+  timeOfDayModalClose.addEventListener("click", event => {
+    event.stopPropagation();
+    closeTimeOfDayModal();
+  });
 }
 
 if (timeOfDayModal) {
@@ -4858,9 +4889,18 @@ if (timeOfDayModal) {
   });
 }
 
+document.addEventListener("keydown", event => {
+  if (event.key === "Escape" && timeOfDayModal && timeOfDayModal.style.display === "flex") {
+    closeTimeOfDayModal();
+  }
+});
+
 if (typeof timeOfDayDisplay !== "undefined" && timeOfDayDisplay) {
   timeOfDayDisplay.style.cursor = "pointer";
-  timeOfDayDisplay.addEventListener("click", openTimeOfDayModal);
+  timeOfDayDisplay.addEventListener("click", event => {
+    event.stopPropagation();
+    openTimeOfDayModal();
+  });
 }
 
 if (trollCaveModal) {
@@ -8315,7 +8355,11 @@ function completeTurnAdvance() {
     rollDayBuffs();
   }
   if (currentTOD !== prevTimeOfDayKey && currentTOD !== "day") {
+    restoreCastleArmorFromDayBuff();
     activeDayBuffs = [];
+  }
+  if (currentTOD !== prevTimeOfDayKey && currentTOD === "day" && isDayBuffActive("castleArmor")) {
+    applyCastleArmorDayBuff();
   }
   prevTimeOfDayKey = currentTOD;
   if (isDayBuffActive("randomRes10")) {
@@ -8919,6 +8963,13 @@ function finalizeMove(gridX, gridY) {
   const resourceNode = resourceByPos[key];
   if (resourceNode) {
     const {type, x, y} = resourceNode;
+    if (isDayBuffActive("pickupFail") && Math.random() < 0.3) {
+      delete resourceByPos[key];
+      setCellToInactive(x, y);
+      showLayerAwarePickupToast(currentPlayerIndex, "Выскользнуло из рук");
+      endTurn();
+      return;
+    }
     let amount = Math.floor(Math.random() * (type.max - type.min + 1)) + type.min;
     if (type.key !== "army") {
       if (turnCounter >= 225) {

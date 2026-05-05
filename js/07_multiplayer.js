@@ -431,6 +431,8 @@ function buildState() {
     scheduledFogOfWarTurns: typeof scheduledFogOfWarTurns !== "undefined" ? shallowClone(scheduledFogOfWarTurns) : [],
     pendingFogOfWarEvents: typeof pendingFogOfWarEvents === "number" ? pendingFogOfWarEvents : 0,
     fogOfWarState: shallowClone(fogOfWarState),
+    activeDayBuffs: typeof activeDayBuffs !== "undefined" ? activeDayBuffs.slice() : [],
+    prevTimeOfDayKey: typeof prevTimeOfDayKey !== "undefined" ? prevTimeOfDayKey : null,
     activeWorldEvents: typeof cloneActiveWorldEvents === "function" ? cloneActiveWorldEvents() : {},
     kingAuctionState: typeof cloneKingAuctionState === "function" ? cloneKingAuctionState() : null,
     kingGenerosityState: typeof cloneKingGenerosityState === "function" ? cloneKingGenerosityState() : null,
@@ -812,6 +814,12 @@ function applyState(state) {
       : pendingFogOfWarEvents;
   }
   fogOfWarState = state.fogOfWarState ? { ...state.fogOfWarState } : null;
+  if (Array.isArray(state.activeDayBuffs)) {
+    activeDayBuffs = state.activeDayBuffs.slice();
+  }
+  if (typeof state.prevTimeOfDayKey !== "undefined") {
+    prevTimeOfDayKey = state.prevTimeOfDayKey;
+  }
   if (state.activeWorldEvents && typeof state.activeWorldEvents === "object") {
     activeWorldEvents = Object.fromEntries(
       Object.entries(state.activeWorldEvents).map(([key, value]) => [key, { ...value }])
