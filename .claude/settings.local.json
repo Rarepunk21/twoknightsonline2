@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(Get-ChildItem -Recurse -Depth 0 \"c:\\\\Users\\\\ashi0\\\\Desktop\\\\twoknightsonline2-main\")",
+      "Bash(Select-Object FullName, Mode)",
+      "Bash(Format-Table -AutoSize)",
+      "PowerShell(git init)",
+      "PowerShell(git remote add origin https://github.com/Rarepunk21/twoknightsonline2.git)",
+      "PowerShell(git add -A)"
+    ]
+  }
+}
