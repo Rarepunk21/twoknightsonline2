@@ -1694,6 +1694,12 @@ if (socket) {
       }
       return;
     }
+    if (type === "animateBallistaBolt") {
+      if (typeof animateBallistaBolt === "function" && typeof payload.fromX === "number") {
+        animateBallistaBolt(payload.fromX, payload.fromY, payload.toX, payload.toY, null);
+      }
+      return;
+    }
     if (type === "clearBallistaMode") {
       if (!Number.isInteger(payload.playerIndex) || ballistaModePlayerIndex === payload.playerIndex) {
         ballistaModePlayerIndex = null;

@@ -3794,6 +3794,15 @@ function tryBallistaShot(gridX, gridY) {
   const toCX = target.x * cellSize + cellSize / 2;
   const toCY = target.y * cellSize + cellSize / 2;
 
+  if (typeof socket !== "undefined" && socket && typeof onlineMatchStarted !== "undefined" && onlineMatchStarted) {
+    const nonHostIndex = typeof localPlayerIndex === "number" ? (localPlayerIndex === 0 ? 1 : 0) : 1;
+    if (players[nonHostIndex] && typeof emitPrivateUiToPlayer === "function") {
+      emitPrivateUiToPlayer(nonHostIndex, "animateBallistaBolt", {
+        fromX: fromCX, fromY: fromCY, toX: toCX, toY: toCY
+      });
+    }
+  }
+
   animateBallistaBolt(fromCX, fromCY, toCX, toCY, () => {
     target.pocket.army = beforeArmy - killed;
     attacker.boltCount -= 1;
