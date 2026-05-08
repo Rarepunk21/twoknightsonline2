@@ -785,7 +785,7 @@ function applyState(state) {
   if (typeof voidShardModePlayerIndex !== "undefined") {
     voidShardModePlayerIndex = Number.isInteger(state.voidShardModePlayerIndex) ? state.voidShardModePlayerIndex : null;
   }
-  upperWormhole = state.upperWormhole ?? upperWormhole;
+  upperWormhole = Object.prototype.hasOwnProperty.call(state, "upperWormhole") ? state.upperWormhole : upperWormhole;
   wormholeSpawnTurns = Array.isArray(state.wormholeSpawnTurns) ? state.wormholeSpawnTurns.slice() : wormholeSpawnTurns;
   wormholeSpawnIndex = state.wormholeSpawnIndex ?? wormholeSpawnIndex;
   if (Array.isArray(state.scheduledWorldEvents)) {
