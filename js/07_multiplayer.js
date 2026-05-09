@@ -1551,7 +1551,7 @@ if (socket) {
   });
 
   socket.on("matchStarted", payload => {
-    pushDebugLog(`matchStarted:host=${Boolean(payload?.isHost)} player=${payload?.localPlayerIndex}`);
+    pushDebugLog(`matchStarted:host=${Boolean(payload?.isHost)} player=${payload?.localPlayerIndex} resumed=${Boolean(payload?.resumed)}`);
     markNetworkEvent("matchStarted");
     onlineMatchStarted = true;
     isHost = Boolean(payload?.isHost);
@@ -1563,9 +1563,12 @@ if (socket) {
     setLobbyStatus("Матч начался.");
     lockGameUi(false);
     updatePanelTitles();
-    resetGameState();
+    const resumed = Boolean(payload?.resumed);
+    if (!resumed) {
+      resetGameState();
+    }
     updateDebugOverlay();
-    if (isHost) {
+    if (isHost && !resumed) {
       setTimeout(() => emitStateNow(true), 0);
       setTimeout(() => {
         forceStartHostTurn();
@@ -1603,6 +1606,9 @@ if (socket) {
     if (!state || applyingRemoteState) return;
     lastStateUpdateAt = Date.now();
     applyState(state);
+    if (isHost && typeof scheduleAutoRoll === "function") {
+      scheduleAutoRoll();
+    }
   });
 
   socket.on("pauseState", payload => {
