@@ -450,6 +450,8 @@ const TROLL_STAY_MAX = 10;
 const TROLL_RESPAWN_MIN = 5;
 const TROLL_RESPAWN_MAX = 10;
 const TROLL_SPEED = 4;
+const TROLL_EVENT_SPEED_MIN = 5;
+const TROLL_EVENT_SPEED_MAX = 7;
 const TROLL_EXTRA_STEPS = 0;
 let trollState = {
   x: null,
@@ -465,7 +467,9 @@ let trollState = {
   stunUsed: false,
   active: true,
   respawnTurns: 0,
-  roamTurnsRemaining: 0
+  roamTurnsRemaining: 0,
+  roamTargetX: null,
+  roamTargetY: null
 };
 
 function initTrollCaves() {
@@ -507,6 +511,8 @@ function initTrollState() {
   trollState.active = true;
   trollState.respawnTurns = 0;
   trollState.roamTurnsRemaining = 0;
+  trollState.roamTargetX = null;
+  trollState.roamTargetY = null;
   updateTrollVisual();
 }
 
@@ -744,9 +750,59 @@ function startTrollMove() {
   trollState.stunUsed = false;
 }
 
+function isCellBlockedForTroll(x, y) {
+  if (x < 0 || x >= COLS || y < 0 || y >= ROWS) return true;
+  const key = `${x},${y}`;
+  if (blockedCellKeys.has(key)) return true;
+  if (nodeByPos[key]) return true;
+  if (barbarianCells.some(cell => cell.key === key)) return true;
+  if (resourceByPos[key]) return true;
+  if (specialByPos[key]) return true;
+  if (treasure && treasure.key === key) return true;
+  if (flowerArtifact && flowerArtifact.key === key) return true;
+  if (stoneByPos[key]) return true;
+  if (rainbowByPos[key]) return true;
+  if (typeof voidShardByPos !== "undefined" && voidShardByPos[key]) return true;
+  return false;
+}
+
+function pickRoamTarget() {
+  for (let attempt = 0; attempt < 50; attempt++) {
+    const tx = Math.floor(Math.random() * COLS);
+    const ty = Math.floor(Math.random() * ROWS);
+    if (!isCellBlockedForTroll(tx, ty)) {
+      trollState.roamTargetX = tx;
+      trollState.roamTargetY = ty;
+      return;
+    }
+  }
+  trollState.roamTargetX = trollState.x;
+  trollState.roamTargetY = trollState.y;
+}
+
+function returnTrollToCave() {
+  if (!trollState.active || trollState.x === null || trollState.y === null) return;
+  const caveIndex = Math.floor(Math.random() * TROLL_CAVES.length);
+  const cave = TROLL_CAVES[caveIndex];
+  trollState.targetCaveIndex = caveIndex;
+  trollState.currentCaveIndex = null;
+  trollState.path = buildTrollPath(
+    { x: trollState.x, y: trollState.y },
+    { x: cave.x, y: cave.y }
+  );
+  trollState.pathIndex = 0;
+  trollState.moving = true;
+  trollState.stunUsed = false;
+}
+
 function handleTrollsTurn() {
   if (trollState.roamTurnsRemaining > 0) {
     trollState.roamTurnsRemaining -= 1;
+    if (trollState.roamTurnsRemaining <= 0) {
+      returnTrollToCave();
+      updateTrollVisual();
+      return;
+    }
   }
   if (!trollState.active) {
     if (trollState.respawnTurns > 0) {
@@ -758,7 +814,7 @@ function handleTrollsTurn() {
     return;
   }
   const roaming = (trollState.roamTurnsRemaining || 0) > 0;
-  if (!roaming && trollState.currentCaveIndex === null) return;
+  if (!roaming && trollState.currentCaveIndex === null && !trollState.moving) return;
   if (roaming && isTrollInCave()) {
     forceTrollExitCave();
   }
@@ -818,7 +874,8 @@ function handleTrollsTurn() {
     }
   }
   if (roaming) {
-    moveTrollRandom();
+    const eventSpeed = randomIntRange(TROLL_EVENT_SPEED_MIN, TROLL_EVENT_SPEED_MAX);
+    moveTrollRoaming(eventSpeed);
   } else if (trollState.moving) {
     let steps = TROLL_SPEED;
     while (steps > 0 && trollState.pathIndex < trollState.path.length) {
@@ -847,28 +904,61 @@ function handleTrollsTurn() {
   updateTrollVisual();
 }
 
-function moveTrollRandom() {
-  const dirs = [[1,0],[-1,0],[0,1],[0,-1]];
-  let steps = TROLL_SPEED;
+function moveTrollRoaming(speed) {
+  let steps = speed;
   while (steps > 0) {
-    const valid = dirs.filter(([dx, dy]) => {
-      const nx = trollState.x + dx;
-      const ny = trollState.y + dy;
-      if (nx < 0 || nx >= COLS || ny < 0 || ny >= ROWS) return false;
-      const key = `${nx},${ny}`;
-      if (blockedCellKeys.has(key)) return false;
-      if (nodeByPos[key]) return false;
-      if (resourceByPos[key]) return false;
-      if (specialByPos[key]) return false;
-      return true;
-    });
-    if (!valid.length) break;
-    const [dx, dy] = valid[Math.floor(Math.random() * valid.length)];
-    trollState.x += dx;
-    trollState.y += dy;
-    trollState.key = `${trollState.x},${trollState.y}`;
-    trollState.currentCaveIndex = null;
-    trollState.targetCaveIndex = null;
+    if (trollState.roamTargetX === null || trollState.roamTargetY === null ||
+        (trollState.x === trollState.roamTargetX && trollState.y === trollState.roamTargetY)) {
+      pickRoamTarget();
+    }
+    const dx = trollState.roamTargetX - trollState.x;
+    const dy = trollState.roamTargetY - trollState.y;
+    const dirs = [];
+    if (Math.abs(dx) >= Math.abs(dy)) {
+      if (dx !== 0) dirs.push([dx > 0 ? 1 : -1, 0]);
+      if (dy !== 0) dirs.push([0, dy > 0 ? 1 : -1]);
+    } else {
+      if (dy !== 0) dirs.push([0, dy > 0 ? 1 : -1]);
+      if (dx !== 0) dirs.push([dx > 0 ? 1 : -1, 0]);
+    }
+    if (dx === 0 && dy === 0) {
+      pickRoamTarget();
+      steps -= 1;
+      continue;
+    }
+    let moved = false;
+    for (let i = 0; i < dirs.length; i++) {
+      const [sdx, sdy] = dirs[i];
+      const nx = trollState.x + sdx;
+      const ny = trollState.y + sdy;
+      if (!isCellBlockedForTroll(nx, ny)) {
+        trollState.x = nx;
+        trollState.y = ny;
+        trollState.key = `${nx},${ny}`;
+        trollState.currentCaveIndex = null;
+        trollState.targetCaveIndex = null;
+        moved = true;
+        break;
+      }
+    }
+    if (!moved) {
+      const fallback = [[1,0],[-1,0],[0,1],[0,-1]];
+      const valid = fallback.filter(([fx, fy]) => {
+        const nx = trollState.x + fx;
+        const ny = trollState.y + fy;
+        return !isCellBlockedForTroll(nx, ny);
+      });
+      if (valid.length) {
+        const [sdx, sdy] = valid[Math.floor(Math.random() * valid.length)];
+        trollState.x += sdx;
+        trollState.y += sdy;
+        trollState.key = `${trollState.x},${trollState.y}`;
+        trollState.currentCaveIndex = null;
+        trollState.targetCaveIndex = null;
+      } else {
+        pickRoamTarget();
+      }
+    }
     steps -= 1;
   }
 }
