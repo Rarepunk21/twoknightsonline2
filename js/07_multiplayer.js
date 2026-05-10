@@ -291,6 +291,7 @@ function buildState() {
       noDoubleTurnsRemaining: p.noDoubleTurnsRemaining,
       royalBlessingTurnsRemaining: p.royalBlessingTurnsRemaining,
       poisonCount: p.poisonCount,
+      fogOfWarCount: p.fogOfWarCount,
       invisPotionCount: p.invisPotionCount,
       luckPotionCount: p.luckPotionCount,
       invisTurnsRemaining: p.invisTurnsRemaining,

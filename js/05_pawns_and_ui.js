@@ -26,6 +26,7 @@ const players = [
     invisPotionCount: 0,
     luckPotionCount: 0,
     invulnPotionCount: 0,
+    fogOfWarCount: 0,
     invisTurnsRemaining: 0,
     luckTurnsRemaining: 0,
     invulnTurnsRemaining: 0,
@@ -80,6 +81,7 @@ const players = [
     invisPotionCount: 0,
     luckPotionCount: 0,
     invulnPotionCount: 0,
+    fogOfWarCount: 0,
     invisTurnsRemaining: 0,
     luckTurnsRemaining: 0,
     invulnTurnsRemaining: 0,
@@ -660,7 +662,8 @@ const INVENTORY_ITEMS = [
   {key: "luck-amulet", label: "Амулет удачи", icon: "luck_amulet.png", count: player => player.luckAmuletCount || 0},
   {key: "builder-amulet", label: "Амулет строителя", icon: "builder_amulet.png", count: player => player.builderAmuletChargeCount || 0, alwaysShow: player => (player.builderAmuletCount || 0) > 0},
   {key: "crystal-sword", label: "Кристальный меч", icon: "crystal_sword.png", count: player => (player.hasCrystalSword ? 1 : 0)},
-  {key: "sword", label: "Меч героя", icon: "sword.png", count: player => (player.hasSword ? 1 : 0)}
+  {key: "sword", label: "Меч героя", icon: "sword.png", count: player => (player.hasSword ? 1 : 0)},
+  {key: "fog-of-war", label: "Туман войны", icon: "fog_1.png", count: player => player.fogOfWarCount || 0, useAction: "fog-of-war"}
 ];
 
 const WORLD_LAYER_UPPER = "upper";
@@ -3393,6 +3396,20 @@ function applyPotion(playerIndex, type) {
     activateBridgeMode(playerIndex);
     return;
   }
+  if (type === "fog-of-war") {
+    if (isFogOfWarActive()) {
+      showPrivatePickupToastForPlayer(playerIndex, "Туман войны уже активен.");
+      return;
+    }
+    player.fogOfWarCount = Math.max(0, (player.fogOfWarCount || 0) - 1);
+    announceFogOfWarEvent();
+    fogOfWarState = { duration: 20, expiresAtTurn: turnCounter + 19 };
+    applyFogOfWarMask();
+    showPrivatePickupToastForPlayer(playerIndex, "Туман войны активирован на 20 ходов.");
+    updatePlayerResources(playerIndex);
+    updateInventory(playerIndex);
+    return;
+  }
   updatePlayerResources(playerIndex);
   updateInventory(playerIndex);
 }
@@ -4454,10 +4471,6 @@ function updateMageActionButtons(playerIndex) {
           `<img class="price-icon" src="assets/icons/mystic_flower.png" alt="Таинственный цветок" />Таинственный цветок`
       );
     }
-    if (action === "fog" && isFogOfWarActive()) {
-      btn.disabled = true;
-      return;
-    }
     const needsFlower = action === "poison";
     const hasFlower = (player.flowerCount || 0) > 0;
     btn.disabled = getTotalGold(player) < cost || (needsFlower && !hasFlower);
@@ -4728,14 +4741,8 @@ function handleMageAction(action) {
     flashPrice(btn, cost, "assets/icons/icon-gold.png", "Золото");
     flashPrice(btn, 1, "assets/icons/mystic_flower.png", "Таинственный цветок");
   } else if (action === "fog") {
-    if (isFogOfWarActive()) {
-      showMageToast("Туман войны уже активен.");
-      return;
-    }
-    announceFogOfWarEvent();
-    fogOfWarState = { duration: 20, expiresAtTurn: turnCounter + 19 };
-    applyFogOfWarMask();
-    showMageToast("Туман войны активирован на 20 ходов.");
+    player.fogOfWarCount = (player.fogOfWarCount || 0) + 1;
+    showMageToast("Туман войны добавлен в инвентарь.");
     const btn = mageActionButtons.find(b => b.dataset.mageAction === "fog");
     flashPrice(btn, cost, "assets/icons/icon-gold.png", "Золото");
   }
@@ -9592,6 +9599,7 @@ function resetGameState() {
     player.noDoubleTurnsRemaining = 0;
     player.royalBlessingTurnsRemaining = 0;
     player.poisonCount = 0;
+    player.fogOfWarCount = 0;
     player.invisPotionCount = 0;
     player.luckPotionCount = 0;
     player.invulnPotionCount = 0;
