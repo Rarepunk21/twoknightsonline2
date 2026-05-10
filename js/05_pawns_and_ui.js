@@ -194,7 +194,7 @@ const WEREWOLF_SPEED_MIN = 6;
 const WEREWOLF_SPEED_MAX = 9;
 const WEREWOLF_ATTACK_MIN = 20;
 const WEREWOLF_ATTACK_MAX = 35;
-const WEREWOLF_MAX_HEALTH = 75;
+const WEREWOLF_MAX_HEALTH = 60;
 const WEREWOLF_MOVE_INTERVAL = 2;
 const WEREWOLF_RETARGET_INTERVAL = 4;
 const WEREWOLF_FORCED_TARGET_TURNS = 5;
@@ -2563,8 +2563,7 @@ function buildWerewolfBattleResult(playerIndex, options = {}) {
     playerAttackPenalty = 1;
     player.attack = Math.max(0, initialAttack - 1);
   }
-  const playerAttackDamage = Math.max(0, player.attack || 0);
-  werewolf.health = Math.max(0, werewolf.health - playerAttackDamage);
+  const playerAttackDamage = 0;
   let playerArmyDamage = 0;
   if (werewolf.health > 0) {
     playerArmyDamage = Math.min(werewolf.health, Math.max(0, player.pocket.army || 0));
